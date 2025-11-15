@@ -1,0 +1,64 @@
+
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Testing and coverage
+coverage/
+.nyc_output/
+test-results/
+test-reports/
+
+# Playwright artifacts
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+.playwright/
+trace.zip
+*.trace.zip
+*.playwright.zip
+
+# Build output
+dist/
+build/
+out/
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Env files
+.env
+
+# IDEs and tools
+.idea/
+.vscode/
+*.swp
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+test-reports/
+screenshots/
+reports/
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+pnpm-lock.yaml
