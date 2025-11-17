@@ -42,6 +42,13 @@ tsconfig.tsbuildinfo
 
 # Env files
 .env
+.env.backup
+
+# Elite environment management
+.elite-run-id
+.deployment-info.json
+.elite-history/
+scripts/*.log
 
 # IDEs and tools
 .idea/
