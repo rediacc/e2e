@@ -96,9 +96,19 @@ if [ "$VMS_ENABLED" = "true" ]; then
     echo "   • Worker IPs: $WORKER_IPS"
     echo ""
 
+    # Machine Credentials
+    MACHINE_USER=$(jq_get "$DEPLOYMENT_INFO" '.vms.machine_user')
+    MACHINE_PASSWORD=$(jq_get "$DEPLOYMENT_INFO" '.vms.machine_password')
+    if [ "$MACHINE_USER" != "null" ] && [ -n "$MACHINE_USER" ]; then
+        echo "🔐 VM Credentials:"
+        echo "   • Username: $MACHINE_USER"
+        echo "   • Password: $MACHINE_PASSWORD"
+        echo ""
+    fi
+
     # SSH Access
     BRIDGE_SSH=$(jq_get "$DEPLOYMENT_INFO" '.vms.ssh_access.bridge')
-    echo "🔐 SSH Access:"
+    echo "🔑 SSH Access:"
     echo "   • Bridge: $BRIDGE_SSH"
 
     # Worker SSH commands
