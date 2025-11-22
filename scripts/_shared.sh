@@ -3,7 +3,7 @@
 
 # Constants
 ELITE_REPO="rediacc/elite"
-WORKFLOW_NAME="Manual Service Run"
+WORKFLOW_NAME="Service Run"
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_ID_FILE="$E2E_DIR/.elite-run-id"
 DEPLOYMENT_INFO_FILE="$E2E_DIR/.deployment-info.json"
