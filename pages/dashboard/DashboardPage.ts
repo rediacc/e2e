@@ -17,7 +17,7 @@ export class DashboardPage extends BasePage {
   constructor(page: Page) {
     super(page, '/console/dashboard');
     
-    this.header = page.locator('[data-testid="main-nav-system"]');
+    this.header = page.locator('[data-testid="sidebar-toggle-button"]');
     this.userMenu = page.locator('[data-testid="user-menu"]');
     this.headerLogo = page.locator('[data-testid="main-logo-home"]');
     this.dashboardCards = page.locator('.ant-card');
