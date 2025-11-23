@@ -90,11 +90,6 @@ on:
         required: false
         default: false
         type: boolean
-      ci-mode:
-        description: 'Enable CI mode (bypasses email and captcha validation)'
-        required: false
-        default: true
-        type: boolean
       browser:
         description: 'Browser to run tests in'
         required: false
@@ -129,7 +124,6 @@ jobs:
       DEFAULT_VM_OS_IMAGE: 'rediacc-ubuntu-24.04'
       DEFAULT_ENABLE_DEBUG: 'false'
       DEFAULT_SKIP_MACHINE_REG: 'false'
-      DEFAULT_CI_MODE: 'true'
       DEFAULT_BROWSER: 'chromium'
 
     steps:
@@ -165,10 +159,9 @@ jobs:
           ENABLE_DEBUG="${{ github.event.inputs.enable-debug || env.DEFAULT_ENABLE_DEBUG }}"
           VM_OS_IMAGE="${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
           SKIP_MACHINE_REG="${{ github.event.inputs.skip-machine-registration || env.DEFAULT_SKIP_MACHINE_REG }}"
-          CI_MODE="${{ github.event.inputs.ci-mode || env.DEFAULT_CI_MODE }}"
 
-          # Trigger environment
-          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" "$ENABLE_VMS" "$VM_PROVIDER" "$VM_CONFIG" "$ENABLE_DEBUG" "$VM_OS_IMAGE" "$SKIP_MACHINE_REG" "$CI_MODE"
+          # Trigger environment (ci-mode always true for E2E tests)
+          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" "$ENABLE_VMS" "$VM_PROVIDER" "$VM_CONFIG" "$ENABLE_DEBUG" "$VM_OS_IMAGE" "$SKIP_MACHINE_REG" "true"
 
           # Extract tunnel URL for reporting
           if [ -f ".deployment-info.json" ]; then
