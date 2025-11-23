@@ -284,6 +284,28 @@ jobs:
           path: elite
           token: ${{ secrets.GH_PAT }}
 
+      - name: Validate Elite Version
+        working-directory: elite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: ./action/ci-validate-version.sh "${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+
+      - name: Pull Docker Images
+        working-directory: elite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          TAG: ${{ env.TAG }}
+        run: ./action/ci-pull-images.sh
+
+      - name: Start Elite Services
+        id: services
+        uses: ./elite/action
+        with:
+          keep-alive: true
+          ci-mode: true
+        env:
+          TAG: ${{ env.TAG }}
+
       - name: Restore E2E Setup
         uses: actions/cache/restore@v4
         with:
@@ -367,6 +389,14 @@ jobs:
           echo "⏱️  Completed at: $(date '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Cleanup Elite Services
+        if: always()
+        working-directory: elite
+        run: |
+          echo "Cleaning up Elite services..."
+          ./go down || true
+          echo "✅ Services stopped"
 
   # Job 4: Cleanup (always runs)
   cleanup:
