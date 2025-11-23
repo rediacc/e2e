@@ -87,7 +87,7 @@ jobs:
       - name: Trigger Elite Environment
         id: trigger
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "Triggering Elite environment..."
 
