@@ -123,12 +123,12 @@ jobs:
           # Copy sample as base
           cp .env.sample .env
 
-          # Update with actual values
+          # Update with actual values from Elite
           sed -i "s|^BASE_URL=.*|BASE_URL=http://localhost|" .env
           sed -i "s|^TEST_USER_EMAIL=.*|TEST_USER_EMAIL=${SYSTEM_ADMIN_EMAIL}|" .env
           sed -i "s|^TEST_USER_PASSWORD=.*|TEST_USER_PASSWORD=${SYSTEM_ADMIN_PASSWORD}|" .env
-          sed -i "s|^ADMIN_USER_EMAIL=.*|ADMIN_USER_EMAIL=${SYSTEM_ADMIN_EMAIL}|" .env
-          sed -i "s|^ADMIN_USER_PASSWORD=.*|ADMIN_USER_PASSWORD=${SYSTEM_ADMIN_PASSWORD}|" .env
+          sed -i "s|^SYSTEM_ADMIN_EMAIL=.*|SYSTEM_ADMIN_EMAIL=${SYSTEM_ADMIN_EMAIL}|" .env
+          sed -i "s|^SYSTEM_ADMIN_PASSWORD=.*|SYSTEM_ADMIN_PASSWORD=${SYSTEM_ADMIN_PASSWORD}|" .env
           sed -i "s|^CI=.*|CI=true|" .env
           sed -i "s|^API_TIMEOUT=.*|API_TIMEOUT=10000|" .env
           sed -i "s|^PAGE_TIMEOUT=.*|PAGE_TIMEOUT=30000|" .env
