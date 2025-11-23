@@ -127,6 +127,37 @@ jobs:
       DEFAULT_BROWSER: 'chromium'
 
     steps:
+      - name: Display Configuration
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 E2E TEST CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📋 Run Details:"
+          echo "   • Run Name: ${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+          echo "   • Trigger: ${{ github.event_name }}"
+          echo "   • Run ID: ${{ github.run_id }}"
+          echo ""
+          echo "⏱️  Environment Settings:"
+          echo "   • Duration: ${{ github.event.inputs.duration || env.DEFAULT_DURATION }} minutes"
+          echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          echo ""
+          echo "🖥️  VM Configuration:"
+          echo "   • Enable VMs: ${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
+          echo "   • Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
+          echo "   • Configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+          echo "   • OS Image: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
+          echo ""
+          echo "🔧 Advanced Settings:"
+          echo "   • Enable Debug: ${{ github.event.inputs.enable-debug || env.DEFAULT_ENABLE_DEBUG }}"
+          echo "   • Skip Machine Registration: ${{ github.event.inputs.skip-machine-registration || env.DEFAULT_SKIP_MACHINE_REG }}"
+          echo "   • CI Mode: true (hardcoded)"
+          echo ""
+          echo "🧪 Test Settings:"
+          echo "   • Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
