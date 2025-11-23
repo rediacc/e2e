@@ -78,7 +78,7 @@ save_run_id "$RUN_ID"
 # Wait for artifact to be available
 log_info "Waiting for deployment information artifact..."
 ARTIFACT_NAME="deployment-info-${RUN_ID}"
-TIMEOUT=300  # 5 minutes timeout
+TIMEOUT=900  # 15 minutes timeout (VM provisioning can take time)
 ELAPSED=0
 
 while true; do
