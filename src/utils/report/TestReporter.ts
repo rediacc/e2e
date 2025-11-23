@@ -47,8 +47,12 @@ export class TestReporter {
 
   private getRetryLabel(): string {
     const maxRetries = this.testInfo.project.retries;
-    if (maxRetries === 0) return '';
-    const currentAttempt = this.testInfo.retry + 1;
+    const currentRetry = this.testInfo.retry;
+    
+    // Only show retry label if we're actually on a retry (not the first attempt)
+    if (currentRetry === 0) return '';
+    
+    const currentAttempt = currentRetry + 1;
     const totalAttempts = maxRetries + 1;
     return `[${currentAttempt}/${totalAttempts}] `;
   }
