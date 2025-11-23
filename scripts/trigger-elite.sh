@@ -18,13 +18,18 @@ ENABLE_VMS="${4:-true}"
 VM_PROVIDER="${5:-kvm}"
 VM_CONFIG="${6:-Standard}"
 ENABLE_DEBUG="${7:-false}"
+VM_OS_IMAGE="${8:-rediacc-ubuntu-24.04}"
+SKIP_MACHINE_REG="${9:-false}"
+CI_MODE="${10:-true}"
 
 log_info "Triggering Elite environment..."
 log_info "  Run Name: ${RUN_NAME}"
 log_info "  Duration: ${DURATION} minutes"
 log_info "  Version: ${VERSION}"
-log_info "  VMs: ${ENABLE_VMS} (${VM_PROVIDER}, ${VM_CONFIG})"
+log_info "  VMs: ${ENABLE_VMS} (${VM_PROVIDER}, ${VM_CONFIG}, ${VM_OS_IMAGE})"
 log_info "  Debug: ${ENABLE_DEBUG}"
+log_info "  Skip Registration: ${SKIP_MACHINE_REG}"
+log_info "  CI Mode: ${CI_MODE}"
 
 # Trigger the workflow
 log_info "Starting workflow..."
@@ -36,7 +41,10 @@ gh workflow run "$WORKFLOW_NAME" \
     -f enable-vms="$ENABLE_VMS" \
     -f vm-provider="$VM_PROVIDER" \
     -f vm-configuration="$VM_CONFIG" \
-    -f enable-debug="$ENABLE_DEBUG"
+    -f enable-debug="$ENABLE_DEBUG" \
+    -f vm-os-image="$VM_OS_IMAGE" \
+    -f skip-machine-registration="$SKIP_MACHINE_REG" \
+    -f ci-mode="$CI_MODE"
 
 if [ $? -ne 0 ]; then
     log_error "Failed to trigger workflow"

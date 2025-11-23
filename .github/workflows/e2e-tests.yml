@@ -16,17 +16,36 @@ on:
         default: '30'
         type: choice
         options:
+          - '5'
+          - '10'
           - '15'
           - '30'
           - '45'
           - '60'
           - '90'
           - '120'
+          - '180'
+          - '240'
+          - '300'
       version:
         description: 'Elite version to test against'
         required: false
         default: 'latest'
         type: string
+      enable-vms:
+        description: 'Enable VM provisioning'
+        required: false
+        default: true
+        type: boolean
+      vm-provider:
+        description: 'VM infrastructure provider'
+        required: false
+        default: 'kvm'
+        type: choice
+        options:
+          - 'kvm'
+          - 'linode'
+          - 'vultr'
       vm-configuration:
         description: 'VM cluster configuration'
         required: false
@@ -37,6 +56,45 @@ on:
           - 'Basic'
           - 'Standard'
           - 'Full'
+      vm-os-image:
+        description: 'VM OS image'
+        required: false
+        default: 'rediacc-ubuntu-24.04'
+        type: choice
+        options:
+          - 'ubuntu-24.04'
+          - 'debian-12'
+          - 'debian-11'
+          - 'fedora-43'
+          - 'fedora-42'
+          - 'oracle-linux-9'
+          - 'oracle-linux-8'
+          - 'opensuse-15.6'
+          - 'opensuse-15.5'
+          - 'rocky-9'
+          - 'centos-stream-10'
+          - 'rediacc-ubuntu-24.04'
+          - 'rediacc-debian-12'
+          - 'rediacc-debian-11'
+          - 'rediacc-fedora-43'
+          - 'rediacc-oracle-linux-9'
+          - 'rediacc-opensuse-15.5'
+          - 'rediacc-centos-stream-10'
+      enable-debug:
+        description: 'Enable tmate SSH debugging session'
+        required: false
+        default: false
+        type: boolean
+      skip-machine-registration:
+        description: 'Skip automatic machine registration'
+        required: false
+        default: false
+        type: boolean
+      ci-mode:
+        description: 'Enable CI mode (bypasses email and captcha validation)'
+        required: false
+        default: true
+        type: boolean
       browser:
         description: 'Browser to run tests in'
         required: false
@@ -65,7 +123,13 @@ jobs:
     env:
       DEFAULT_DURATION: '30'
       DEFAULT_VERSION: 'latest'
+      DEFAULT_ENABLE_VMS: 'true'
+      DEFAULT_VM_PROVIDER: 'kvm'
       DEFAULT_VM_CONFIGURATION: 'Standard'
+      DEFAULT_VM_OS_IMAGE: 'rediacc-ubuntu-24.04'
+      DEFAULT_ENABLE_DEBUG: 'false'
+      DEFAULT_SKIP_MACHINE_REG: 'false'
+      DEFAULT_CI_MODE: 'true'
       DEFAULT_BROWSER: 'chromium'
 
     steps:
@@ -95,10 +159,16 @@ jobs:
           RUN_NAME="${{ github.event.inputs.run-name || 'E2E Test Run' }}"
           DURATION="${{ github.event.inputs.duration || env.DEFAULT_DURATION }}"
           VERSION="${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          ENABLE_VMS="${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
+          VM_PROVIDER="${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
           VM_CONFIG="${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+          ENABLE_DEBUG="${{ github.event.inputs.enable-debug || env.DEFAULT_ENABLE_DEBUG }}"
+          VM_OS_IMAGE="${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
+          SKIP_MACHINE_REG="${{ github.event.inputs.skip-machine-registration || env.DEFAULT_SKIP_MACHINE_REG }}"
+          CI_MODE="${{ github.event.inputs.ci-mode || env.DEFAULT_CI_MODE }}"
 
           # Trigger environment
-          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" true kvm "$VM_CONFIG" false
+          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" "$ENABLE_VMS" "$VM_PROVIDER" "$VM_CONFIG" "$ENABLE_DEBUG" "$VM_OS_IMAGE" "$SKIP_MACHINE_REG" "$CI_MODE"
 
           # Extract tunnel URL for reporting
           if [ -f ".deployment-info.json" ]; then
@@ -117,6 +187,8 @@ jobs:
           echo "🖥️  Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
           echo "📦 Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
           echo "⚙️  VM Config: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+          echo "🖥️  VM Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
+          echo "💿 VM OS: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -151,6 +223,8 @@ jobs:
 
       - name: Cleanup Elite Environment
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "Cleaning up Elite environment..."
           ./go cleanup || true
