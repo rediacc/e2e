@@ -1,0 +1,164 @@
+name: E2E Tests
+
+run-name: "${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-name:
+        description: 'Custom name for this test run'
+        required: false
+        default: 'E2E Test Run'
+        type: string
+      duration:
+        description: 'Duration to keep Elite environment running (minutes)'
+        required: false
+        default: '30'
+        type: choice
+        options:
+          - '15'
+          - '30'
+          - '45'
+          - '60'
+          - '90'
+          - '120'
+      version:
+        description: 'Elite version to test against'
+        required: false
+        default: 'latest'
+        type: string
+      vm-configuration:
+        description: 'VM cluster configuration'
+        required: false
+        default: 'Standard'
+        type: choice
+        options:
+          - 'Minimal'
+          - 'Basic'
+          - 'Standard'
+          - 'Full'
+      browser:
+        description: 'Browser to run tests in'
+        required: false
+        default: 'chromium'
+        type: choice
+        options:
+          - 'chromium'
+          - 'firefox'
+          - 'webkit'
+          - 'all'
+
+  schedule:
+    # Run daily at 6:00 AM UTC
+    - cron: '0 6 * * *'
+
+jobs:
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      DEFAULT_DURATION: '30'
+      DEFAULT_VERSION: 'latest'
+      DEFAULT_VM_CONFIGURATION: 'Standard'
+      DEFAULT_BROWSER: 'chromium'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}
+
+      - name: Trigger Elite Environment
+        id: trigger
+        run: |
+          echo "Triggering Elite environment..."
+
+          # Set parameters
+          RUN_NAME="${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+          DURATION="${{ github.event.inputs.duration || env.DEFAULT_DURATION }}"
+          VERSION="${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          VM_CONFIG="${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+
+          # Trigger environment
+          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" true kvm "$VM_CONFIG" false
+
+          # Extract tunnel URL for reporting
+          if [ -f ".deployment-info.json" ]; then
+            TUNNEL_URL=$(jq -r '.access.tunnel_url' .deployment-info.json)
+            echo "tunnel-url=$TUNNEL_URL" >> $GITHUB_OUTPUT
+            echo "Elite environment ready at: $TUNNEL_URL"
+          fi
+
+      - name: Display Test Configuration
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 TEST CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🌐 Base URL: ${{ steps.trigger.outputs.tunnel-url }}"
+          echo "🖥️  Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+          echo "📦 Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          echo "⚙️  VM Config: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Run Playwright Tests
+        id: tests
+        run: |
+          BROWSER="${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+
+          if [ "$BROWSER" = "all" ]; then
+            npx playwright test
+          else
+            npx playwright test --project="$BROWSER"
+          fi
+        env:
+          CI: true
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload Test Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots-${{ github.run_id }}
+          path: test-results/
+          retention-days: 7
+
+      - name: Cleanup Elite Environment
+        if: always()
+        run: |
+          echo "Cleaning up Elite environment..."
+          ./go cleanup || true
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 TEST SUMMARY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🔗 Test run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "📊 Report artifact: playwright-report-${{ github.run_id }}"
+          echo "⏱️  Completed at: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

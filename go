@@ -18,7 +18,7 @@ trigger() {
     local version="${3:-latest}"
     local enable_vms="${4:-true}"
     local vm_provider="${5:-kvm}"
-    local vm_config="${6:-Basic}"
+    local vm_config="${6:-Standard}"
     local enable_debug="${7:-false}"
 
     print_separator
@@ -132,7 +132,7 @@ Commands:
           - version: Docker image version (default: latest)
           - vms: enable VMs true/false (default: true)
           - provider: VM provider kvm/linode/vultr (default: kvm)
-          - config: VM config Minimal/Basic/Standard/Full (default: Basic)
+          - config: VM config Minimal/Basic/Standard/Full (default: Standard)
           - debug: enable debug true/false (default: false)
 
   status  Show current environment status

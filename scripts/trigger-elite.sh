@@ -16,7 +16,7 @@ DURATION="${2:-30}"
 VERSION="${3:-latest}"
 ENABLE_VMS="${4:-true}"
 VM_PROVIDER="${5:-kvm}"
-VM_CONFIG="${6:-Basic}"
+VM_CONFIG="${6:-Standard}"
 ENABLE_DEBUG="${7:-false}"
 
 log_info "Triggering Elite environment..."
