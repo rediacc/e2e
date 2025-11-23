@@ -1,0 +1,191 @@
+name: E2E Tests
+
+run-name: "${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-name:
+        description: 'Custom name for this test run'
+        required: false
+        default: 'E2E Test Run'
+        type: string
+      version:
+        description: 'Elite version to test against'
+        required: false
+        default: 'latest'
+        type: string
+      browser:
+        description: 'Browser to run tests in'
+        required: false
+        default: 'chromium'
+        type: choice
+        options:
+          - 'chromium'
+          - 'firefox'
+          - 'webkit'
+          - 'all'
+
+  pull_request:
+    branches:
+      - main
+
+  schedule:
+    # Run daily at 6:00 AM UTC
+    - cron: '0 6 * * *'
+
+jobs:
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DEFAULT_VERSION: 'latest'
+      DEFAULT_BROWSER: 'chromium'
+
+    steps:
+      - name: Display Configuration
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 E2E TEST CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📋 Run Details:"
+          echo "   • Run Name: ${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+          echo "   • Trigger: ${{ github.event_name }}"
+          echo "   • Run ID: ${{ github.run_id }}"
+          echo ""
+          echo "⚙️  Settings:"
+          echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          echo "   • Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+          echo "   • Base URL: http://localhost (local services)"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Checkout E2E Repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Elite Repository
+        uses: actions/checkout@v4
+        with:
+          repository: rediacc/elite
+          path: elite
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}
+
+      - name: Validate Elite Version
+        working-directory: elite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: ./action/ci-validate-version.sh "${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+
+      - name: Pull Docker Images
+        working-directory: elite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          TAG: ${{ env.TAG }}
+        run: ./action/ci-pull-images.sh
+
+      - name: Start Elite Services
+        id: services
+        uses: ./elite/action
+        with:
+          keep-alive: true
+          ci-mode: true
+        env:
+          TAG: ${{ env.TAG }}
+
+      - name: Create Test Environment
+        run: |
+          # Create .env file for Playwright
+          cat > .env << 'EOF'
+          BASE_URL=http://localhost
+          API_TIMEOUT=10000
+          PAGE_TIMEOUT=30000
+          CI=true
+          EOF
+
+          # Remove leading spaces from heredoc
+          sed -i 's/^          //' .env
+
+          echo "Created .env:"
+          cat .env
+
+      - name: Display Service Status
+        working-directory: elite
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 ELITE SERVICES READY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📍 Service URLs:"
+          echo "   • API: ${{ steps.services.outputs.api-url }}"
+          echo "   • Web UI: http://localhost"
+          echo ""
+          echo "📊 Container Status:"
+          ./go status
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Run Playwright Tests
+        id: tests
+        run: |
+          BROWSER="${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+
+          if [ "$BROWSER" = "all" ]; then
+            npx playwright test
+          else
+            npx playwright test --project="$BROWSER"
+          fi
+        env:
+          CI: true
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload Test Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots-${{ github.run_id }}
+          path: test-results/
+          retention-days: 7
+
+      - name: Cleanup Elite Services
+        if: always()
+        working-directory: elite
+        run: |
+          echo "Cleaning up Elite services..."
+          ./go down || true
+          echo "✅ Services stopped"
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 TEST SUMMARY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🔗 Test run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "📊 Report artifact: playwright-report-${{ github.run_id }}"
+          echo "⏱️  Completed at: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

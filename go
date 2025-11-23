@@ -18,8 +18,11 @@ trigger() {
     local version="${3:-latest}"
     local enable_vms="${4:-true}"
     local vm_provider="${5:-kvm}"
-    local vm_config="${6:-Basic}"
+    local vm_config="${6:-Standard}"
     local enable_debug="${7:-false}"
+    local vm_os_image="${8:-rediacc-ubuntu-24.04}"
+    local skip_machine_reg="${9:-false}"
+    local ci_mode="${10:-true}"
 
     print_separator
     echo "🚀 STARTING ELITE ENVIRONMENT"
@@ -28,7 +31,8 @@ trigger() {
 
     # Run trigger script
     if ! bash "$SCRIPTS_DIR/trigger-elite.sh" \
-        "$run_name" "$duration" "$version" "$enable_vms" "$vm_provider" "$vm_config" "$enable_debug"; then
+        "$run_name" "$duration" "$version" "$enable_vms" "$vm_provider" "$vm_config" "$enable_debug" \
+        "$vm_os_image" "$skip_machine_reg" "$ci_mode"; then
         log_error "Failed to trigger Elite environment"
         exit 1
     fi
@@ -125,15 +129,18 @@ workflows and automatically configuring the test environment.
 Usage: ./go [command] [options]
 
 Commands:
-  trigger [run-name] [duration] [version] [vms] [provider] [config] [debug]
+  trigger [run-name] [duration] [version] [vms] [provider] [config] [debug] [os-image] [skip-reg] [ci-mode]
           Start Elite environment
           - run-name: custom name for this run (default: "E2E Test Environment")
           - duration: minutes to keep alive (default: 30)
           - version: Docker image version (default: latest)
           - vms: enable VMs true/false (default: true)
           - provider: VM provider kvm/linode/vultr (default: kvm)
-          - config: VM config Minimal/Basic/Standard/Full (default: Basic)
+          - config: VM config Minimal/Basic/Standard/Full (default: Standard)
           - debug: enable debug true/false (default: false)
+          - os-image: VM OS image (default: rediacc-ubuntu-24.04)
+          - skip-reg: skip machine registration true/false (default: false)
+          - ci-mode: enable CI mode true/false (default: true)
 
   status  Show current environment status
 
