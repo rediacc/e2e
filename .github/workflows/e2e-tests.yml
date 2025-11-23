@@ -26,6 +26,10 @@ on:
           - 'webkit'
           - 'all'
 
+  push:
+    branches:
+      - main
+
   pull_request:
     branches:
       - main
