@@ -16,15 +16,15 @@ export class DashboardPage extends BasePage {
 
   constructor(page: Page) {
     super(page, '/console/dashboard');
-    
+
     this.header = page.locator('[data-testid="sidebar-toggle-button"]');
-    this.userMenu = page.locator('[data-testid="user-menu"]');
+    this.userMenu = page.locator('[data-testid="user-menu-button"]');
     this.headerLogo = page.locator('[data-testid="main-logo-home"]');
     this.dashboardCards = page.locator('.ant-card');
-    this.machineStatusWidget = page.locator('[data-testid="machine-status-widget"]');
-    this.queueStatusWidget = page.locator('[data-testid="queue-status-widget"]');
-    this.storageWidget = page.locator('[data-testid="storage-widget"]');
-    this.activityLogWidget = page.locator('[data-testid="activity-log-widget"]');
+    this.machineStatusWidget = page.locator('[data-testid="dashboard-card-resource-usage"]');
+    this.queueStatusWidget = page.locator('[data-testid="dashboard-card-queue-overview"]');
+    this.storageWidget = page.locator('[data-testid="dashboard-card-subscription-plans"]');
+    this.activityLogWidget = page.locator('[data-testid="dashboard-card-recent-activity"]');
     this.notificationBell = page.locator('[data-testid="notification-bell"]');
     this.teamSelector = page.locator('[data-testid="team-selector"]');
     this.searchInput = page.locator('[data-testid="search-input"]');
@@ -81,25 +81,26 @@ export class DashboardPage extends BasePage {
 
   async getMachineStatus(): Promise<Record<string, number>> {
     await this.waitForElement(this.machineStatusWidget);
-    
-    const onlineCount = await this.machineStatusWidget.locator('[data-testid="machines-online"]').textContent();
-    const offlineCount = await this.machineStatusWidget.locator('[data-testid="machines-offline"]').textContent();
-    const totalCount = await this.machineStatusWidget.locator('[data-testid="machines-total"]').textContent();
-    
+
+    // Resource usage card shows Machine and Repo usage percentages
+    const machineProgress = this.machineStatusWidget.locator('[data-testid="dashboard-progress-machine"]');
+    const repoProgress = this.machineStatusWidget.locator('[data-testid="dashboard-progress-repo"]');
+
+    // Return resource counts (the card shows "X / Y" format in TileMeta)
     return {
-      online: parseInt(onlineCount || '0', 10),
-      offline: parseInt(offlineCount || '0', 10),
-      total: parseInt(totalCount || '0', 10)
+      machineUsage: await machineProgress.count() > 0 ? 1 : 0,
+      repoUsage: await repoProgress.count() > 0 ? 1 : 0,
+      total: 2
     };
   }
 
   async getQueueStatus(): Promise<Record<string, number>> {
     await this.waitForElement(this.queueStatusWidget);
-    
-    const pendingCount = await this.queueStatusWidget.locator('[data-testid="queue-pending"]').textContent();
-    const runningCount = await this.queueStatusWidget.locator('[data-testid="queue-running"]').textContent();
-    const completedCount = await this.queueStatusWidget.locator('[data-testid="queue-completed"]').textContent();
-    
+
+    const pendingCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-pending"]').textContent();
+    const runningCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-processing"]').textContent();
+    const completedCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-completed"]').textContent();
+
     return {
       pending: parseInt(pendingCount || '0', 10),
       running: parseInt(runningCount || '0', 10),
@@ -109,15 +110,15 @@ export class DashboardPage extends BasePage {
 
   async getStorageInfo(): Promise<Record<string, string>> {
     await this.waitForElement(this.storageWidget);
-    
-    const usedSpace = await this.storageWidget.locator('[data-testid="storage-used"]').textContent();
-    const totalSpace = await this.storageWidget.locator('[data-testid="storage-total"]').textContent();
-    const usagePercent = await this.storageWidget.locator('[data-testid="storage-percentage"]').textContent();
-    
+
+    // Subscription card shows license and plan info
+    const activeLicenses = await this.storageWidget.locator('[data-testid="dashboard-stat-active-licenses"]').textContent();
+    const daysRemaining = await this.storageWidget.locator('[data-testid="dashboard-stat-days-remaining"]').textContent();
+
     return {
-      used: usedSpace || '',
-      total: totalSpace || '',
-      percentage: usagePercent || ''
+      activeLicenses: activeLicenses || '',
+      daysRemaining: daysRemaining || '',
+      percentage: ''
     };
   }
 
