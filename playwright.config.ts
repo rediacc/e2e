@@ -28,7 +28,7 @@ export default test.defineConfig({
       } else {
         throw new Error('BASE_URL environment variable is required');
       }
-    })() + '/console/',
+    })(),
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',

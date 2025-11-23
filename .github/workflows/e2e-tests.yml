@@ -330,6 +330,7 @@ jobs:
           sed -i "s|^CI=.*|CI=true|" .env
           sed -i "s|^API_TIMEOUT=.*|API_TIMEOUT=10000|" .env
           sed -i "s|^PAGE_TIMEOUT=.*|PAGE_TIMEOUT=30000|" .env
+          sed -i "s|^BROWSER=.*|BROWSER=${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}|" .env
 
           echo "Created .env with Elite credentials"
           grep -v PASSWORD .env
@@ -346,6 +347,13 @@ jobs:
           echo "   • API URL: http://localhost"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Wait for Elite Services
+        run: |
+          echo "Waiting for Elite services to be ready..."
+          timeout 120 bash -c 'until curl -f http://localhost/health 2>/dev/null; do echo "Waiting for services..."; sleep 5; done' || {
+            echo "Elite services health check failed, but continuing with tests..."
+          }
 
       - name: Run Playwright Tests
         id: tests
