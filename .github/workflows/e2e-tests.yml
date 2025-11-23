@@ -112,20 +112,30 @@ jobs:
           TAG: ${{ env.TAG }}
 
       - name: Create Test Environment
+        working-directory: elite
         run: |
-          # Create .env file for Playwright
-          cat > .env << 'EOF'
-          BASE_URL=http://localhost
-          API_TIMEOUT=10000
-          PAGE_TIMEOUT=30000
-          CI=true
-          EOF
+          # Source Elite's environment to get credentials
+          source action/ci-env.sh
 
-          # Remove leading spaces from heredoc
-          sed -i 's/^          //' .env
+          # Go back to e2e directory
+          cd $GITHUB_WORKSPACE
 
-          echo "Created .env:"
-          cat .env
+          # Copy sample as base
+          cp .env.sample .env
+
+          # Update with actual values
+          sed -i "s|^BASE_URL=.*|BASE_URL=http://localhost|" .env
+          sed -i "s|^TEST_USER_EMAIL=.*|TEST_USER_EMAIL=${SYSTEM_ADMIN_EMAIL}|" .env
+          sed -i "s|^TEST_USER_PASSWORD=.*|TEST_USER_PASSWORD=${SYSTEM_ADMIN_PASSWORD}|" .env
+          sed -i "s|^ADMIN_USER_EMAIL=.*|ADMIN_USER_EMAIL=${SYSTEM_ADMIN_EMAIL}|" .env
+          sed -i "s|^ADMIN_USER_PASSWORD=.*|ADMIN_USER_PASSWORD=${SYSTEM_ADMIN_PASSWORD}|" .env
+          sed -i "s|^CI=.*|CI=true|" .env
+          sed -i "s|^API_TIMEOUT=.*|API_TIMEOUT=10000|" .env
+          sed -i "s|^PAGE_TIMEOUT=.*|PAGE_TIMEOUT=30000|" .env
+
+          echo "Created .env with Elite credentials"
+          # Show non-sensitive values
+          grep -v PASSWORD .env
 
       - name: Display Service Status
         working-directory: elite
