@@ -45,6 +45,14 @@ export class TestReporter {
     }
   }
 
+  private getRetryLabel(): string {
+    const maxRetries = this.testInfo.project.retries;
+    if (maxRetries === 0) return '';
+    const currentAttempt = this.testInfo.retry + 1;
+    const totalAttempts = maxRetries + 1;
+    return `[${currentAttempt}/${totalAttempts}] `;
+  }
+
   async startStep(stepName: string, details?: Record<string, any>): Promise<TestStep> {
     const step: TestStep = {
       name: stepName,
@@ -54,8 +62,8 @@ export class TestReporter {
     };
 
     this.steps.push(step);
-    console.log(`🚀 Starting step: ${stepName}`);
-    
+    console.log(`${this.getRetryLabel()}🚀 Starting step: ${stepName}`);
+
     return step;
   }
 
@@ -72,7 +80,7 @@ export class TestReporter {
       }
 
       const statusEmoji = status === 'passed' ? '✅' : status === 'failed' ? '❌' : '⏭️';
-      console.log(`${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
+      console.log(`${this.getRetryLabel()}${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
     }
   }
 
@@ -85,10 +93,15 @@ export class TestReporter {
 
   async recordMetrics(): Promise<void> {
     try {
+      // Check if page is still usable before collecting metrics
+      if (this.page.isClosed()) {
+        return;
+      }
+
       const performanceMetrics = await this.page.evaluate(() => {
         const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
         const resources = performance.getEntriesByType('resource');
-        
+
         return {
           pageLoadTime: navigation ? navigation.loadEventEnd - navigation.fetchStart : 0,
           responseTime: navigation ? navigation.responseEnd - navigation.requestStart : 0,
@@ -99,14 +112,18 @@ export class TestReporter {
 
       this.metrics = { ...this.metrics, ...performanceMetrics };
 
-      if ('memory' in performance) {
+      if ('memory' in performance && !this.page.isClosed()) {
         const memoryInfo = await this.page.evaluate(() => (performance as any).memory);
         if (memoryInfo) {
           this.metrics.memoryUsage = memoryInfo.usedJSHeapSize;
         }
       }
     } catch (error) {
-      console.warn(`⚠️ Failed to collect performance metrics: ${error}`);
+      // Silently handle page closure errors to avoid noisy logs on test failures
+      const errorMessage = String(error);
+      if (!errorMessage.includes('Target page, context or browser has been closed')) {
+        console.warn(`⚠️ Failed to collect performance metrics: ${error}`);
+      }
     }
   }
 
@@ -192,9 +209,9 @@ export class TestReporter {
         startTime: this.testStartTime.toISOString(),
         endTime: new Date().toISOString(),
         duration: Date.now() - this.testStartTime.getTime(),
-        url: this.page.url(),
-        viewport: await this.page.viewportSize(),
-        userAgent: await this.page.evaluate(() => navigator.userAgent)
+        url: this.page.isClosed() ? 'page closed' : this.page.url(),
+        viewport: this.page.isClosed() ? null : await this.page.viewportSize(),
+        userAgent: this.page.isClosed() ? 'page closed' : await this.page.evaluate(() => navigator.userAgent)
       },
       steps: this.steps,
       metrics: this.metrics,

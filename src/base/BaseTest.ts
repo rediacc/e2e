@@ -64,8 +64,8 @@ export const test = baseTest.extend<TestFixtures>({
     const page = await context.newPage();
     
     const adminData = {
-      email: requireEnvVar('ADMIN_USER_EMAIL'),
-      password: requireEnvVar('ADMIN_USER_PASSWORD')
+      email: requireEnvVar('SYSTEM_ADMIN_EMAIL'),
+      password: requireEnvVar('SYSTEM_ADMIN_PASSWORD')
     };
 
     await page.goto('/console/login');
