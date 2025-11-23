@@ -10,86 +10,11 @@ on:
         required: false
         default: 'E2E Test Run'
         type: string
-      duration:
-        description: 'Duration to keep Elite environment running (minutes)'
-        required: false
-        default: '30'
-        type: choice
-        options:
-          - '5'
-          - '10'
-          - '15'
-          - '30'
-          - '45'
-          - '60'
-          - '90'
-          - '120'
-          - '180'
-          - '240'
-          - '300'
       version:
         description: 'Elite version to test against'
         required: false
         default: 'latest'
         type: string
-      enable-vms:
-        description: 'Enable VM provisioning'
-        required: false
-        default: true
-        type: boolean
-      vm-provider:
-        description: 'VM infrastructure provider'
-        required: false
-        default: 'kvm'
-        type: choice
-        options:
-          - 'kvm'
-          - 'linode'
-          - 'vultr'
-      vm-configuration:
-        description: 'VM cluster configuration'
-        required: false
-        default: 'Standard'
-        type: choice
-        options:
-          - 'Minimal'
-          - 'Basic'
-          - 'Standard'
-          - 'Full'
-      vm-os-image:
-        description: 'VM OS image'
-        required: false
-        default: 'rediacc-ubuntu-24.04'
-        type: choice
-        options:
-          - 'ubuntu-24.04'
-          - 'debian-12'
-          - 'debian-11'
-          - 'fedora-43'
-          - 'fedora-42'
-          - 'oracle-linux-9'
-          - 'oracle-linux-8'
-          - 'opensuse-15.6'
-          - 'opensuse-15.5'
-          - 'rocky-9'
-          - 'centos-stream-10'
-          - 'rediacc-ubuntu-24.04'
-          - 'rediacc-debian-12'
-          - 'rediacc-debian-11'
-          - 'rediacc-fedora-43'
-          - 'rediacc-oracle-linux-9'
-          - 'rediacc-opensuse-15.5'
-          - 'rediacc-centos-stream-10'
-      enable-debug:
-        description: 'Enable tmate SSH debugging session'
-        required: false
-        default: false
-        type: boolean
-      skip-machine-registration:
-        description: 'Skip automatic machine registration'
-        required: false
-        default: false
-        type: boolean
       browser:
         description: 'Browser to run tests in'
         required: false
@@ -113,17 +38,10 @@ jobs:
   e2e-tests:
     name: Run E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     env:
-      DEFAULT_DURATION: '30'
       DEFAULT_VERSION: 'latest'
-      DEFAULT_ENABLE_VMS: 'true'
-      DEFAULT_VM_PROVIDER: 'kvm'
-      DEFAULT_VM_CONFIGURATION: 'Standard'
-      DEFAULT_VM_OS_IMAGE: 'rediacc-ubuntu-24.04'
-      DEFAULT_ENABLE_DEBUG: 'false'
-      DEFAULT_SKIP_MACHINE_REG: 'false'
       DEFAULT_BROWSER: 'chromium'
 
     steps:
@@ -138,28 +56,22 @@ jobs:
           echo "   • Trigger: ${{ github.event_name }}"
           echo "   • Run ID: ${{ github.run_id }}"
           echo ""
-          echo "⏱️  Environment Settings:"
-          echo "   • Duration: ${{ github.event.inputs.duration || env.DEFAULT_DURATION }} minutes"
+          echo "⚙️  Settings:"
           echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
-          echo ""
-          echo "🖥️  VM Configuration:"
-          echo "   • Enable VMs: ${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
-          echo "   • Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
-          echo "   • Configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
-          echo "   • OS Image: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
-          echo ""
-          echo "🔧 Advanced Settings:"
-          echo "   • Enable Debug: ${{ github.event.inputs.enable-debug || env.DEFAULT_ENABLE_DEBUG }}"
-          echo "   • Skip Machine Registration: ${{ github.event.inputs.skip-machine-registration || env.DEFAULT_SKIP_MACHINE_REG }}"
-          echo "   • CI Mode: true (hardcoded)"
-          echo ""
-          echo "🧪 Test Settings:"
           echo "   • Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+          echo "   • Base URL: http://localhost (local services)"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-      - name: Checkout Repository
+      - name: Checkout E2E Repository
         uses: actions/checkout@v4
+
+      - name: Checkout Elite Repository
+        uses: actions/checkout@v4
+        with:
+          repository: rediacc/elite
+          path: elite
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -173,46 +85,57 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}
 
-      - name: Trigger Elite Environment
-        id: trigger
+      - name: Validate Elite Version
+        working-directory: elite
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: ./action/ci-validate-version.sh "${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+
+      - name: Pull Docker Images
+        working-directory: elite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          TAG: ${{ env.TAG }}
+        run: ./action/ci-pull-images.sh
+
+      - name: Start Elite Services
+        id: services
+        uses: ./elite/action
+        with:
+          keep-alive: true
+          ci-mode: true
+        env:
+          TAG: ${{ env.TAG }}
+
+      - name: Create Test Environment
         run: |
-          echo "Triggering Elite environment..."
+          # Create .env file for Playwright
+          cat > .env << 'EOF'
+          BASE_URL=http://localhost
+          API_TIMEOUT=10000
+          PAGE_TIMEOUT=30000
+          CI=true
+          EOF
 
-          # Set parameters
-          RUN_NAME="${{ github.event.inputs.run-name || 'E2E Test Run' }}"
-          DURATION="${{ github.event.inputs.duration || env.DEFAULT_DURATION }}"
-          VERSION="${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
-          ENABLE_VMS="${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
-          VM_PROVIDER="${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
-          VM_CONFIG="${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
-          ENABLE_DEBUG="${{ github.event.inputs.enable-debug || env.DEFAULT_ENABLE_DEBUG }}"
-          VM_OS_IMAGE="${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
-          SKIP_MACHINE_REG="${{ github.event.inputs.skip-machine-registration || env.DEFAULT_SKIP_MACHINE_REG }}"
+          # Remove leading spaces from heredoc
+          sed -i 's/^          //' .env
 
-          # Trigger environment (ci-mode always true for E2E tests)
-          ./go trigger "$RUN_NAME" "$DURATION" "$VERSION" "$ENABLE_VMS" "$VM_PROVIDER" "$VM_CONFIG" "$ENABLE_DEBUG" "$VM_OS_IMAGE" "$SKIP_MACHINE_REG" "true"
+          echo "Created .env:"
+          cat .env
 
-          # Extract tunnel URL for reporting
-          if [ -f ".deployment-info.json" ]; then
-            TUNNEL_URL=$(jq -r '.access.tunnel_url' .deployment-info.json)
-            echo "tunnel-url=$TUNNEL_URL" >> $GITHUB_OUTPUT
-            echo "Elite environment ready at: $TUNNEL_URL"
-          fi
-
-      - name: Display Test Configuration
+      - name: Display Service Status
+        working-directory: elite
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📋 TEST CONFIGURATION"
+          echo "🚀 ELITE SERVICES READY"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-          echo "🌐 Base URL: ${{ steps.trigger.outputs.tunnel-url }}"
-          echo "🖥️  Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
-          echo "📦 Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
-          echo "⚙️  VM Config: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
-          echo "🖥️  VM Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
-          echo "💿 VM OS: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
+          echo "📍 Service URLs:"
+          echo "   • API: ${{ steps.services.outputs.api-url }}"
+          echo "   • Web UI: http://localhost"
+          echo ""
+          echo "📊 Container Status:"
+          ./go status
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -245,13 +168,13 @@ jobs:
           path: test-results/
           retention-days: 7
 
-      - name: Cleanup Elite Environment
+      - name: Cleanup Elite Services
         if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+        working-directory: elite
         run: |
-          echo "Cleaning up Elite environment..."
-          ./go cleanup || true
+          echo "Cleaning up Elite services..."
+          ./go down || true
+          echo "✅ Services stopped"
 
       - name: Test Summary
         if: always()
