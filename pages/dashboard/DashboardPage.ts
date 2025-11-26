@@ -15,19 +15,20 @@ export class DashboardPage extends BasePage {
   private readonly searchInput: Locator;
 
   constructor(page: Page) {
-    super(page, '/console/dashboard');
-
-    this.header = page.locator('[data-testid="sidebar-toggle-button"]');
-    this.userMenu = page.locator('[data-testid="user-menu-button"]');
-    this.headerLogo = page.locator('[data-testid="main-logo-home"]');
-    this.dashboardCards = page.locator('.ant-card');
-    this.machineStatusWidget = page.locator('[data-testid="dashboard-card-resource-usage"]');
-    this.queueStatusWidget = page.locator('[data-testid="dashboard-card-queue-overview"]');
-    this.storageWidget = page.locator('[data-testid="dashboard-card-subscription-plans"]');
-    this.activityLogWidget = page.locator('[data-testid="dashboard-card-recent-activity"]');
-    this.notificationBell = page.locator('[data-testid="notification-bell"]');
-    this.teamSelector = page.locator('[data-testid="team-selector"]');
-    this.searchInput = page.locator('[data-testid="search-input"]');
+    super(page, '/console/machines');
+    
+    // Actual elements visible in the screenshot
+    this.header = page.locator('nav'); // Top navigation
+    this.userMenu = page.getByRole('button').last(); // User profile button (circle with R)
+    this.headerLogo = page.getByText('rediacc'); // Logo text
+    this.dashboardCards = page.locator('.ant-card, .card'); // Dashboard cards
+    this.machineStatusWidget = page.getByText('Machines'); // Machines section in sidebar
+    this.queueStatusWidget = page.getByText('Select a team to view its resources'); // Main content area
+    this.storageWidget = page.locator('main'); // Main content area
+    this.activityLogWidget = page.locator('aside'); // Sidebar
+    this.notificationBell = page.getByRole('button').first(); // Notification bell
+    this.teamSelector = page.getByText('Select a team above to view and manage its resources'); // Team selector
+    this.searchInput = page.locator('input[type="search"], input[placeholder*="search"]'); // Search input
   }
 
   getPageLocators(): Record<string, Locator> {
