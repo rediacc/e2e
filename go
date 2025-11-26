@@ -118,6 +118,11 @@ cleanup() {
     bash "$SCRIPTS_DIR/cleanup-elite.sh"
 }
 
+# Function to install playwright
+install() {
+    bash "$SCRIPTS_DIR/playwright-install.sh"
+}
+
 # Function to show help
 help() {
     cat << EOF
@@ -149,6 +154,8 @@ Commands:
   logs    Watch workflow logs in real-time
 
   cleanup Cancel workflow and cleanup local files
+
+  install Install Playwright and browser dependencies
 
   help    Show this help message
 
@@ -203,6 +210,9 @@ case "${1:-help}" in
         ;;
     cleanup)
         cleanup
+        ;;
+    install)
+        install
         ;;
     help|--help|-h)
         help
