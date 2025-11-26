@@ -37,16 +37,16 @@ async function setupAuthentication() {
     
     await page.goto(`${baseURL}/console/login`);
     
-    const emailInput = page.locator('[data-testid="email-input"]');
+    const emailInput = page.locator('[data-testid="login-email-input"]');
     if (await emailInput.isVisible({ timeout: 5000 })) {
       const loginData = {
         email: requireEnvVar('TEST_USER_EMAIL'),
         password: requireEnvVar('TEST_USER_PASSWORD')
       };
 
-      await page.fill('[data-testid="email-input"]', loginData.email);
-      await page.fill('[data-testid="password-input"]', loginData.password);
-      await page.click('[data-testid="login-button"]');
+      await page.fill('[data-testid="login-email-input"]', loginData.email);
+      await page.fill('[data-testid="login-password-input"]', loginData.password);
+      await page.click('[data-testid="login-submit-button"]');
       
       try {
         await page.waitForURL(`${baseURL}/console/**`, { timeout: 10000 });

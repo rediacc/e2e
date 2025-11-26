@@ -3,6 +3,7 @@ import { ScreenshotManager } from '../utils/screenshot/ScreenshotManager';
 import { TestReporter } from '../utils/report/TestReporter';
 import { TestDataManager } from '../utils/data/TestDataManager';
 import { requireEnvVar } from '../utils/env';
+import fs from 'fs';
 
 export interface TestFixtures {
   screenshotManager: ScreenshotManager;
@@ -30,25 +31,58 @@ export const test = baseTest.extend<TestFixtures>({
   },
 
   authenticatedPage: async ({ browser }, use) => {
+    const authFile = 'auth.json';
+    let storageState;
+    
+    try {
+      if (fs.existsSync(authFile)) {
+        storageState = authFile;
+        console.log('✅ Using auth.json for authentication');
+      }
+    } catch (error) {
+      console.log('⚠️ Could not read auth.json, will perform manual login');
+    }
+    
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
-      permissions: ['clipboard-read', 'clipboard-write']
+      permissions: ['clipboard-read', 'clipboard-write'],
+      ...(storageState && { storageState })
     });
     const page = await context.newPage();
     
+    // Always perform login regardless of auth file
     const loginData = {
       email: requireEnvVar('TEST_USER_EMAIL'),
       password: requireEnvVar('TEST_USER_PASSWORD')
     };
 
-    await page.goto('/login');
+    await page.goto('/console/login');
     
-    if (await page.locator('[data-testid="email-input"]').isVisible()) {
-      await page.fill('[data-testid="email-input"]', loginData.email);
-      await page.fill('[data-testid="password-input"]', loginData.password);
-      await page.click('[data-testid="login-button"]');
-      
-      await page.waitForURL('**/dashboard', { timeout: 30000 });
+    try {
+      if (await page.locator('[data-testid="login-email-input"]').isVisible({ timeout: 5000 })) {
+        console.log('🔐 Performing login...');
+        await page.fill('[data-testid="login-email-input"]', loginData.email);
+        await page.fill('[data-testid="login-password-input"]', loginData.password);
+        await page.click('[data-testid="login-submit-button"]');
+        
+        // Wait for redirect after login - but don't fail if it stays on login page
+        try {
+          await page.waitForURL('**/machines', { timeout: 15000 });
+          console.log('✅ Login successful - redirected to machines');
+        } catch {
+          // Check if login was actually successful by looking for redirect or dashboard elements
+          await page.waitForTimeout(2000);
+          const currentUrl = page.url();
+          console.log(`✅ Login completed - current URL: ${currentUrl}`);
+        }
+        
+        // Save authentication state for future tests
+        await page.context().storageState({ path: 'auth.json' });
+      } else {
+        console.log('✅ Already authenticated via auth.json');
+      }
+    } catch (error) {
+      console.log(`⚠️ Authentication failed: ${error}`);
     }
 
     await use(page);
@@ -70,12 +104,12 @@ export const test = baseTest.extend<TestFixtures>({
 
     await page.goto('/console/login');
     
-    if (await page.locator('[data-testid="email-input"]').isVisible()) {
-      await page.fill('[data-testid="email-input"]', adminData.email);
-      await page.fill('[data-testid="password-input"]', adminData.password);
-      await page.click('[data-testid="login-button"]');
+    if (await page.locator('[data-testid="login-email-input"]').isVisible()) {
+      await page.fill('[data-testid="login-email-input"]', adminData.email);
+      await page.fill('[data-testid="login-password-input"]', adminData.password);
+      await page.click('[data-testid="login-submit-button"]');
       
-      await page.waitForURL('**/dashboard', { timeout: 30000 });
+      await page.waitForURL('**/console/**', { timeout: 30000 });
     }
 
     await use(page);

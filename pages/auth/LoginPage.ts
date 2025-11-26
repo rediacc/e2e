@@ -69,6 +69,21 @@ export class LoginPage extends BasePage {
     return await this.errorMessage.textContent() || '';
   }
 
+  async validateErrorMessage(expectedMessage?: string): Promise<boolean> {
+    try {
+      await this.waitForElement(this.errorMessage, 5000);
+      const actualMessage = await this.errorMessage.textContent() || '';
+      
+      if (expectedMessage) {
+        return actualMessage.includes(expectedMessage);
+      }
+      
+      return actualMessage.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async isLoginButtonEnabled(): Promise<boolean> {
     return await this.loginButton.isEnabled();
   }

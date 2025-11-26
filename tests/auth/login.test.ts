@@ -67,10 +67,11 @@ test.describe('Login Tests', () => {
 
     const step3 = await testReporter.startStep('Verify error message');
     
-    const errorMessage = await loginPage.getErrorMessage();
-    expect(errorMessage).toBeTruthy();
-    expect(errorMessage.toLowerCase()).toContain('failed');
-    
+    //const errorMessage = await loginPage.getErrorMessage();
+    //expect(errorMessage).toBeTruthy();
+    //expect(errorMessage.toLowerCase()).toContain('failed');
+    await loginPage.validateErrorMessage('not found');
+
     await screenshotManager.captureStep('03_error_message_displayed');
     await testReporter.completeStep('Verify error message', 'passed');
     

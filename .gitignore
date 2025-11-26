@@ -69,3 +69,4 @@ reports/
 /playwright/.cache/
 /playwright/.auth/
 pnpm-lock.yaml
+auth.json
