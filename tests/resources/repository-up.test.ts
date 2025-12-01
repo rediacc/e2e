@@ -8,9 +8,8 @@ test.describe('Repository Up Tests', () => {
   let dashboardPage: DashboardPage;
 
   test.beforeEach(async ({ authenticatedPage }) => {
+    // authenticatedPage fixture already navigates to /console/machines
     dashboardPage = new DashboardPage(authenticatedPage);
-    await dashboardPage.navigate();
-    await dashboardPage.navigateToSection('resources');
     await dashboardPage.waitForNetworkIdle();
   });
 
@@ -65,7 +64,7 @@ test.describe('Repository Up Tests', () => {
       await authenticatedPage.waitForTimeout(1000);
     }
 
-    const reposTable = authenticatedPage.locator('[data-testid="machines-table"]');
+    const reposTable = authenticatedPage.locator('[data-testid="machine-repo-list-table"]');
 
     if (!(await reposTable.isVisible())) {
       await screenshotManager.captureStep('repositories_not_visible');
@@ -150,10 +149,8 @@ test.describe('Repository Up Tests', () => {
 
     const stepQueueTrace = await testReporter.startStep('Verify queue trace dialog');
 
-    // Wait for queue trace dialog to appear
-    const queueDialog = authenticatedPage.locator(
-      'div[role="dialog"]:has-text("Queue Item Trace"), .ant-modal:has-text("Queue")'
-    );
+    // Use precise selector for queue trace dialog
+    const queueDialog = authenticatedPage.locator('[data-testid="queue-trace-modal"], [data-testid="machines-queue-trace-modal"]');
 
     try {
       await expect(queueDialog).toBeVisible({ timeout: 30000 });
@@ -171,27 +168,13 @@ test.describe('Repository Up Tests', () => {
 
     const stepCloseQueue = await testReporter.startStep('Close queue trace dialog');
 
-    const closeButtonCandidates = [
-      '[data-testid="queue-trace-modal-close-button"]',
-      '[data-testid="queue-trace-close-button"]',
-      '.ant-modal-close',
-      'button:has-text("Close")',
-      'button:has-text("OK")'
-    ];
+    // Use precise selector for close button
+    const closeButton = authenticatedPage.locator('[data-testid="queue-trace-close-button"]');
 
-    let closed = false;
-
-    for (const selector of closeButtonCandidates) {
-      const closeButton = authenticatedPage.locator(selector).first();
-      if (await closeButton.isVisible()) {
-        await closeButton.click();
-        closed = true;
-        break;
-      }
-    }
-
-    if (!closed) {
-      // Fallback: escape key
+    if (await closeButton.isVisible()) {
+      await closeButton.click();
+    } else {
+      // Fallback to escape key
       await authenticatedPage.keyboard.press('Escape');
     }
 

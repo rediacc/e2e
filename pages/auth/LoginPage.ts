@@ -6,7 +6,6 @@ export class LoginPage extends BasePage {
   private readonly emailInput: Locator;
   private readonly passwordInput: Locator;
   private readonly loginButton: Locator;
-  private readonly rememberMeCheckbox: Locator;
   private readonly forgotPasswordLink: Locator;
   private readonly registerLink: Locator;
   private readonly errorMessage: Locator;
@@ -14,13 +13,12 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page) {
     super(page, '/console/login');
-    
+
     this.emailInput = page.locator('[data-testid="login-email-input"]');
     this.passwordInput = page.locator('[data-testid="login-password-input"]');
     this.loginButton = page.locator('[data-testid="login-submit-button"]');
-    this.rememberMeCheckbox = page.locator('[data-testid="remember-me"]');
     this.forgotPasswordLink = page.locator('[data-testid="forgot-password"]');
-    this.registerLink = page.locator('[data-testid="register-link"]');
+    this.registerLink = page.locator('[data-testid="login-register-link"]');
     this.errorMessage = page.locator('[data-testid="login-error-alert"]');
     this.loadingSpinner = page.locator('.ant-spin');
   }
@@ -30,7 +28,6 @@ export class LoginPage extends BasePage {
       emailInput: this.emailInput,
       passwordInput: this.passwordInput,
       loginButton: this.loginButton,
-      rememberMeCheckbox: this.rememberMeCheckbox,
       forgotPasswordLink: this.forgotPasswordLink,
       registerLink: this.registerLink,
       errorMessage: this.errorMessage,
@@ -38,15 +35,10 @@ export class LoginPage extends BasePage {
     };
   }
 
-  async login(email: string, password: string, rememberMe: boolean = false): Promise<void> {
-    console.log(`Logging in with email: ${email}, rememberMe: ${rememberMe}`);
+  async login(email: string, password: string): Promise<void> {
+    console.log(`Logging in with email: ${email}`);
     await this.emailInput.fill(email);
     await this.passwordInput.fill(password);
-    
-    if (rememberMe) {
-      await this.rememberMeCheckbox.check();
-    }
-    
     await this.loginButton.click();
     await this.waitForNetworkIdle();
   }
@@ -61,7 +53,7 @@ export class LoginPage extends BasePage {
 
   async waitForLoginCompletion(): Promise<void> {
     await this.waitForElementToDisappear(this.loadingSpinner, 10000);
-    await this.page.waitForURL('**/console/**', { timeout: 30000 });
+    await this.page.waitForURL('**/machines', { timeout: 30000 });
   }
 
   async getErrorMessage(): Promise<string> {
@@ -88,10 +80,6 @@ export class LoginPage extends BasePage {
     return await this.loginButton.isEnabled();
   }
 
-  async isRememberMeChecked(): Promise<boolean> {
-    return await this.rememberMeCheckbox.isChecked();
-  }
-
   async clickForgotPassword(): Promise<void> {
     await this.forgotPasswordLink.click();
   }
@@ -103,10 +91,6 @@ export class LoginPage extends BasePage {
   async clearForm(): Promise<void> {
     await this.emailInput.clear();
     await this.passwordInput.clear();
-    
-    if (await this.rememberMeCheckbox.isChecked()) {
-      await this.rememberMeCheckbox.uncheck();
-    }
   }
 
   async fillEmailOnly(email: string): Promise<void> {

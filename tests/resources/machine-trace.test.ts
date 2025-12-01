@@ -8,9 +8,8 @@ test.describe('Machine Trace Tests', () => {
   let dashboardPage: DashboardPage;
 
   test.beforeEach(async ({ authenticatedPage }) => {
+    // authenticatedPage fixture already navigates to /console/machines
     dashboardPage = new DashboardPage(authenticatedPage);
-    await dashboardPage.navigate();
-    await dashboardPage.navigateToSection('resources');
     await dashboardPage.waitForNetworkIdle();
   });
 
@@ -47,51 +46,28 @@ test.describe('Machine Trace Tests', () => {
 
     const stepOpenTrace = await testReporter.startStep('Open machine trace view');
 
-    const traceButtonCandidates = [
-      `[data-testid="machine-trace-${machine.name}"]`,
-      'button:has-text("Trace")',
-      '[data-testid*="machine-trace-"]',
-      'button[title*="trace"]',
-      '[aria-label*="trace" i]'
-    ];
+    // Click on machine row to select it, then look for trace/queue action
+    await machineRow.click();
+    await authenticatedPage.waitForTimeout(500);
 
-    let traceOpened = false;
+    // Look for queue trace button in the machine row actions
+    const traceButton = machineRow.locator('[data-testid*="queue"], button:has-text("Queue")').first();
 
-    for (const selector of traceButtonCandidates) {
-      const button = machineRow.locator(selector).first();
-      if (await button.isVisible()) {
-        await button.click();
-        traceOpened = true;
-        break;
-      }
-    }
-
-    if (!traceOpened) {
-      for (const selector of traceButtonCandidates) {
-        const button = authenticatedPage.locator(selector).first();
-        if (await button.isVisible()) {
-          await button.click();
-          traceOpened = true;
-          break;
-        }
-      }
-    }
-
-    if (!traceOpened) {
+    if (!(await traceButton.isVisible())) {
       await screenshotManager.captureStep('trace_button_not_found');
       await testReporter.completeStep(
         'Open machine trace view',
         'skipped',
-        'Trace button not found for selected machine'
+        'Trace/Queue button not found for selected machine'
       );
       return;
     }
 
+    await traceButton.click();
     await authenticatedPage.waitForTimeout(1000);
 
-    const traceModal = authenticatedPage.locator(
-      '.ant-modal:has-text("Trace"), .ant-modal:has-text("Queue"), div[role="dialog"]:has-text("Trace"), div[role="dialog"]:has-text("Queue")'
-    );
+    // Use precise selector for queue trace modal
+    const traceModal = authenticatedPage.locator('[data-testid="queue-trace-modal"], [data-testid="machines-queue-trace-modal"]');
 
     try {
       await expect(traceModal).toBeVisible({ timeout: 15000 });
@@ -170,26 +146,13 @@ test.describe('Machine Trace Tests', () => {
 
     const stepCloseTrace = await testReporter.startStep('Close trace modal');
 
-    const closeSelectors = [
-      '.ant-modal-close',
-      'button:has-text("Close")',
-      'button:has-text("Cancel")',
-      '[aria-label="Close"]',
-      '[data-testid*="close"]'
-    ];
+    // Use precise selector for close button
+    const closeButton = authenticatedPage.locator('[data-testid="queue-trace-close-button"]');
 
-    let traceClosed = false;
-
-    for (const selector of closeSelectors) {
-      const closeButton = authenticatedPage.locator(selector).first();
-      if (await closeButton.isVisible()) {
-        await closeButton.click();
-        traceClosed = true;
-        break;
-      }
-    }
-
-    if (!traceClosed) {
+    if (await closeButton.isVisible()) {
+      await closeButton.click();
+    } else {
+      // Fallback to escape key if button not found
       await authenticatedPage.keyboard.press('Escape');
     }
 
