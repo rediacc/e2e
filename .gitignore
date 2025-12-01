@@ -70,3 +70,6 @@ reports/
 /playwright/.auth/
 pnpm-lock.yaml
 auth.json
+
+# Generated test data
+utils/data/test-data.json

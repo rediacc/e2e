@@ -62,43 +62,46 @@ export class TestDataManager {
   }
 
   private initializeTestData(): void {
+    // Get machine IPs from environment (CI) or use defaults (local)
+    const vmWorkerIps = process.env.VM_WORKER_IPS;
+    let machineIps: string[];
+
+    if (vmWorkerIps) {
+      // CI environment - parse comma-separated IPs
+      machineIps = vmWorkerIps.split(',').map(ip => ip.trim()).filter(ip => ip);
+      console.log(`Using VM_WORKER_IPS from environment: ${machineIps.join(', ')}`);
+    } else {
+      // Local development - use default IPs
+      machineIps = ['192.168.111.11', '192.168.111.12'];
+    }
+
     const defaultData: TestData = {
       users: [
         {
-          email: 'test@example.com',
-          password: 'testpassword123',
-          firstName: 'Test',
-          lastName: 'User',
-          role: 'user',
-          team: 'Default'
-        },
-        {
-          email: 'admin@example.com',
-          password: 'adminpassword123',
+          email: 'admin@rediacc.io',
+          password: 'admin',
           firstName: 'Admin',
           lastName: 'User',
           role: 'admin',
-          team: 'Default'
+          team: 'Private Team'
         }
       ],
-      machines: [
-        {
-          name: 'test-machine-01',
-          ip: '192.168.1.100',
-          user: 'testuser',
-          team: 'Default',
-          datastore: '/mnt/datastore'
-        }
-      ],
+      machines: machineIps.map((ip, index) => ({
+        name: `machine-${index + 1}`,
+        ip: ip,
+        user: process.env.VM_USR || 'runner',
+        team: 'Private Team',
+        datastore: '/mnt/datastore'
+      })),
       repositories: [
         {
           name: 'test-repo',
-          machine: 'test-machine-01',
-          team: 'Default',
+          machine: 'machine-1',
+          team: 'Private Team',
           version: '1.0.0'
         }
       ],
-      teams: ['Default', 'Development', 'Production']
+      teams: ['Private Team']
     };
 
     this.saveTestData(defaultData);
@@ -162,14 +165,19 @@ export class TestDataManager {
     return data.machines[0];
   }
 
-  createTemporaryMachine(team: string = 'Default'): TestMachine {
+  createTemporaryMachine(team: string = 'Private Team'): TestMachine {
     const timestamp = Date.now();
+    const data = this.loadTestData();
+    // Use first machine's IP or fall back to default
+    const machineIp = data.machines[0]?.ip || process.env.VM_WORKER_IPS?.split(',')[0]?.trim() || '192.168.111.11';
+    const machineUser = data.machines[0]?.user || process.env.VM_USR || 'runner';
+
     return {
       name: `temp-machine-${timestamp}`,
-      ip: `192.168.1.${Math.floor(Math.random() * 254) + 1}`,
-      user: 'tempuser',
+      ip: machineIp,
+      user: machineUser,
       team,
-      datastore: '/tmp/datastore'
+      datastore: '/mnt/datastore'
     };
   }
 

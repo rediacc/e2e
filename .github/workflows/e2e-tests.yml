@@ -1,14 +1,28 @@
 name: E2E Tests
 
-run-name: "${{ github.event.inputs.run-name || 'E2E Test Run' }}"
+run-name: "${{ github.event.inputs.run-name || format('E2E {0} @{1}', github.event_name == 'pull_request' && format('PR#{0}', github.event.pull_request.number) || github.event_name, github.sha) }}"
 
 on:
+  # Scheduled runs every 8 hours (00:00, 08:00, 16:00 UTC)
+  schedule:
+    - cron: '0 0,8,16 * * *'
+
   workflow_dispatch:
     inputs:
       run-name:
         description: 'Custom name for this test run'
         required: false
-        default: 'E2E Test Run'
+        default: ''
+        type: string
+      source-repo:
+        description: 'Source repository that triggered this run (e.g., org/monorepo)'
+        required: false
+        default: ''
+        type: string
+      source-commit:
+        description: 'Commit SHA from source repository'
+        required: false
+        default: ''
         type: string
       version:
         description: 'Elite version to test against'
@@ -68,9 +82,6 @@ on:
     branches:
       - main
 
-  schedule:
-    - cron: '0 6 * * *'
-
 env:
   DEFAULT_VERSION: 'latest'
   DEFAULT_BROWSER: 'chromium'
@@ -80,144 +91,7 @@ env:
   DEFAULT_VM_OS_IMAGE: 'rediacc-ubuntu-24.04'
 
 jobs:
-  # Job 1: Provision VMs (runs in parallel with e2e-setup)
-  vm-provisioning:
-    name: Provision VMs
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event.inputs.enable-vms != 'false'
-
-    outputs:
-      bridge-ip: ${{ steps.vms.outputs.bridge-ip }}
-      worker-ips: ${{ steps.vms.outputs.worker-ips }}
-      machine-user: ${{ steps.vms.outputs.machine-user }}
-      machine-password: ${{ steps.vms.outputs.machine-password }}
-      api-url: ${{ steps.services.outputs.api-url }}
-
-    steps:
-      - name: Display VM Configuration
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🖥️  VM PROVISIONING CONFIGURATION"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "📋 Settings:"
-          echo "   • Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
-          echo "   • Configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
-          echo "   • OS Image: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
-          echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-      - name: Checkout Elite Repository
-        uses: actions/checkout@v4
-        with:
-          repository: rediacc/elite
-          token: ${{ secrets.GH_PAT }}
-
-      - name: Validate Elite Version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        run: ./action/ci-validate-version.sh "${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
-
-      - name: Pull Docker Images
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          TAG: ${{ env.TAG }}
-        run: ./action/ci-pull-images.sh
-
-      - name: Start Elite Services
-        id: services
-        uses: ./action
-        with:
-          keep-alive: true
-          ci-mode: true
-        env:
-          TAG: ${{ env.TAG }}
-          SKIP_MACHINE_REGISTRATION: 'true'
-
-      - name: Extract SSH Keys
-        env:
-          TAG: ${{ env.TAG }}
-        run: |
-          echo "Extracting SSH keys from middleware..."
-
-          timeout 60 bash -c 'until ./go health; do sleep 2; done'
-
-          TAG_VERSION="${TAG:-latest}"
-          if [ "$TAG_VERSION" = "latest" ]; then
-            pip install --quiet rediacc
-          else
-            pip install --quiet "rediacc==$TAG_VERSION" 2>/dev/null || pip install --quiet rediacc
-          fi
-
-          source action/ci-env.sh
-          export SYSTEM_API_URL="http://localhost/api"
-
-          rediacc auth login \
-            --endpoint "$SYSTEM_API_URL" \
-            --email "$SYSTEM_ADMIN_EMAIL" \
-            --password "$SYSTEM_ADMIN_PASSWORD"
-
-          TEAM_VAULT=$(rediacc GetCompanyTeams --output json | \
-            jq -r --arg team "$SYSTEM_DEFAULT_TEAM_NAME" \
-            '.data.result[] | select(.teamName == $team or .TeamName == $team) | .vaultContent')
-
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          echo "$TEAM_VAULT" | jq -r '.SSH_PRIVATE_KEY' | base64 -d > ~/.ssh/id_rsa
-          echo "$TEAM_VAULT" | jq -r '.SSH_PUBLIC_KEY' | base64 -d > ~/.ssh/id_rsa.pub
-
-          chmod 600 ~/.ssh/id_rsa
-          chmod 644 ~/.ssh/id_rsa.pub
-
-          echo "✓ SSH keys extracted"
-          rediacc auth logout
-
-      - name: Provision VMs
-        id: vms
-        uses: rediacc/ops/.github/actions/setup-vms@main
-        with:
-          provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}
-          configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}
-          duration: '60'
-          api-token: ${{ github.event.inputs.vm-provider == 'linode' && secrets.LINODE_API_TOKEN || github.event.inputs.vm-provider == 'vultr' && secrets.VULTR_API_TOKEN || '' }}
-        env:
-          VM_OS_IMAGE: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}
-          TAG: ${{ env.TAG }}
-          DOCKER_BRIDGE_IMAGE: ghcr.io/rediacc/elite/bridge:${{ env.TAG }}
-          DOCKER_BRIDGE_NETWORK_MODE: host
-          DOCKER_BRIDGE_API_URL: http://localhost
-          SYSTEM_API_URL: http://localhost/api
-          SKIP_MACHINE_REGISTRATION: 'true'
-          CI_MODE: 'true'
-
-      - name: Register Worker Machines
-        run: |
-          source action/ci-env.sh
-
-          export VM_DEPLOYMENT="true"
-          export VM_BRIDGE_IP="${{ steps.vms.outputs.bridge-ip }}"
-          export VM_WORKER_IPS="${{ steps.vms.outputs.worker-ips }}"
-          export VM_PROVIDER="${{ github.event.inputs.vm-provider || 'kvm' }}"
-
-          action/ci-register-workers.sh
-
-      - name: Display VM Information
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ VM INFRASTRUCTURE READY"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "🌐 Access:"
-          echo "   • Bridge IP: ${{ steps.vms.outputs.bridge-ip }}"
-          echo "   • Worker IPs: ${{ steps.vms.outputs.worker-ips }}"
-          echo "   • API URL: http://localhost"
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-  # Job 2: Setup E2E environment (runs in parallel with vm-provisioning)
+  # Job 1: Setup E2E environment (runs in parallel, caches dependencies)
   e2e-setup:
     name: Setup E2E
     runs-on: ubuntu-latest
@@ -234,6 +108,13 @@ jobs:
           echo "   • Run Name: ${{ github.event.inputs.run-name || 'E2E Test Run' }}"
           echo "   • Trigger: ${{ github.event_name }}"
           echo "   • Run ID: ${{ github.run_id }}"
+          if [ -n "${{ github.event.inputs.source-repo }}" ]; then
+            echo ""
+            echo "🔗 Source (Cross-Repo Trigger):"
+            echo "   • Repository: ${{ github.event.inputs.source-repo }}"
+            echo "   • Commit: ${{ github.event.inputs.source-commit }}"
+            echo "   • Commit URL: https://github.com/${{ github.event.inputs.source-repo }}/commit/${{ github.event.inputs.source-commit }}"
+          fi
           echo ""
           echo "⚙️  Settings:"
           echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
@@ -265,15 +146,32 @@ jobs:
             ~/.cache/ms-playwright
           key: e2e-setup-${{ github.run_id }}
 
-  # Job 3: Run E2E Tests (waits for both vm-provisioning and e2e-setup)
+  # Job 2: Run E2E Tests with VM Provisioning (all on same runner!)
   e2e-tests:
     name: Run E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [vm-provisioning, e2e-setup]
-    if: always() && needs.e2e-setup.result == 'success'
+    timeout-minutes: 45
+    needs: [e2e-setup]
 
     steps:
+      - name: Display Test Configuration
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🖥️  E2E TEST CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📋 VM Settings:"
+          echo "   • Enable VMs: ${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
+          echo "   • Provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}"
+          echo "   • Configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}"
+          echo "   • OS Image: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}"
+          echo ""
+          echo "📋 Test Settings:"
+          echo "   • Version: ${{ github.event.inputs.version || env.DEFAULT_VERSION }}"
+          echo "   • Browser: ${{ github.event.inputs.browser || env.DEFAULT_BROWSER }}"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
       - name: Checkout E2E Repository
         uses: actions/checkout@v4
 
@@ -305,7 +203,114 @@ jobs:
           ci-mode: true
         env:
           TAG: ${{ env.TAG }}
+          SKIP_MACHINE_REGISTRATION: ${{ github.event.inputs.enable-vms != 'false' && 'true' || 'false' }}
 
+      # VM Provisioning steps (only if VMs enabled)
+      - name: Extract SSH Keys
+        if: github.event.inputs.enable-vms != 'false'
+        working-directory: elite
+        env:
+          TAG: ${{ env.TAG }}
+        run: |
+          echo "Extracting SSH keys from middleware..."
+
+          timeout 60 bash -c 'until ./go health; do sleep 2; done'
+
+          # Install rediacc CLI - try local /pypi/ first, fallback to public PyPI
+          LOCAL_PYPI="http://localhost/pypi/"
+          TAG_VERSION="${TAG:-latest}"
+
+          if [ "$TAG_VERSION" = "latest" ]; then
+            if pip install --quiet --find-links "$LOCAL_PYPI" --trusted-host localhost rediacc 2>/dev/null; then
+              echo "✓ Installed rediacc from local /pypi/"
+            else
+              echo "Local package not found, installing from PyPI..."
+              pip install --quiet rediacc
+              echo "✓ Installed rediacc from PyPI"
+            fi
+          else
+            if pip install --quiet --find-links "$LOCAL_PYPI" --trusted-host localhost "rediacc==$TAG_VERSION" 2>/dev/null; then
+              echo "✓ Installed rediacc $TAG_VERSION from local /pypi/"
+            elif pip install --quiet "rediacc==$TAG_VERSION" 2>/dev/null; then
+              echo "✓ Installed rediacc $TAG_VERSION from PyPI"
+            else
+              echo "⚠ Version $TAG_VERSION not available, falling back to latest..."
+              pip install --quiet rediacc
+              echo "✓ Installed rediacc (latest) from PyPI"
+            fi
+          fi
+
+          source action/ci-env.sh
+          export SYSTEM_API_URL="http://localhost/api"
+
+          rediacc auth login \
+            --endpoint "$SYSTEM_API_URL" \
+            --email "$SYSTEM_ADMIN_EMAIL" \
+            --password "$SYSTEM_ADMIN_PASSWORD"
+
+          TEAM_VAULT=$(rediacc GetCompanyTeams --output json | \
+            jq -r --arg team "$SYSTEM_DEFAULT_TEAM_NAME" \
+            '.data.result[] | select(.teamName == $team or .TeamName == $team) | .vaultContent')
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "$TEAM_VAULT" | jq -r '.SSH_PRIVATE_KEY' | base64 -d > ~/.ssh/id_rsa
+          echo "$TEAM_VAULT" | jq -r '.SSH_PUBLIC_KEY' | base64 -d > ~/.ssh/id_rsa.pub
+
+          chmod 600 ~/.ssh/id_rsa
+          chmod 644 ~/.ssh/id_rsa.pub
+
+          echo "✓ SSH keys extracted"
+          rediacc auth logout
+
+      - name: Provision VMs
+        id: vms
+        if: github.event.inputs.enable-vms != 'false'
+        uses: rediacc/ops/.github/actions/setup-vms@main
+        with:
+          provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}
+          configuration: ${{ github.event.inputs.vm-configuration || env.DEFAULT_VM_CONFIGURATION }}
+          duration: '60'
+          api-token: ${{ github.event.inputs.vm-provider == 'linode' && secrets.LINODE_API_TOKEN || github.event.inputs.vm-provider == 'vultr' && secrets.VULTR_API_TOKEN || '' }}
+        env:
+          VM_OS_IMAGE: ${{ github.event.inputs.vm-os-image || env.DEFAULT_VM_OS_IMAGE }}
+          TAG: ${{ env.TAG }}
+          DOCKER_BRIDGE_IMAGE: ghcr.io/rediacc/elite/bridge:${{ env.TAG }}
+          DOCKER_BRIDGE_NETWORK_MODE: host
+          DOCKER_BRIDGE_API_URL: http://localhost
+          SYSTEM_API_URL: http://localhost/api
+          SKIP_MACHINE_REGISTRATION: 'true'
+          CI_MODE: 'true'
+
+      - name: Register Worker Machines
+        if: github.event.inputs.enable-vms != 'false'
+        working-directory: elite
+        run: |
+          source action/ci-env.sh
+
+          export VM_DEPLOYMENT="true"
+          export VM_BRIDGE_IP="${{ steps.vms.outputs.bridge-ip }}"
+          export VM_WORKER_IPS="${{ steps.vms.outputs.worker-ips }}"
+          export VM_PROVIDER="${{ github.event.inputs.vm-provider || 'kvm' }}"
+
+          action/ci-register-workers.sh
+
+      - name: Display VM Information
+        if: github.event.inputs.enable-vms != 'false'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ VM INFRASTRUCTURE READY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "🌐 Access:"
+          echo "   • Bridge IP: ${{ steps.vms.outputs.bridge-ip }}"
+          echo "   • Worker IPs: ${{ steps.vms.outputs.worker-ips }}"
+          echo "   • API URL: http://localhost"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # Test setup and execution
       - name: Restore E2E Setup
         uses: actions/cache/restore@v4
         with:
@@ -342,8 +347,9 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           echo "📍 Configuration:"
-          echo "   • VM Provisioning: ${{ needs.vm-provisioning.result || 'skipped' }}"
-          echo "   • Bridge IP: ${{ needs.vm-provisioning.outputs.bridge-ip || 'N/A' }}"
+          echo "   • VMs Enabled: ${{ github.event.inputs.enable-vms || env.DEFAULT_ENABLE_VMS }}"
+          echo "   • Bridge IP: ${{ steps.vms.outputs.bridge-ip || 'N/A' }}"
+          echo "   • Worker IPs: ${{ steps.vms.outputs.worker-ips || 'N/A' }}"
           echo "   • API URL: http://localhost"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -367,6 +373,8 @@ jobs:
           fi
         env:
           CI: true
+          VM_WORKER_IPS: ${{ steps.vms.outputs.worker-ips }}
+          VM_USR: ${{ steps.vms.outputs.machine-user }}
 
       - name: Upload Test Results
         if: always()
@@ -392,11 +400,25 @@ jobs:
           echo "📝 TEST SUMMARY"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
+          if [ -n "${{ github.event.inputs.source-repo }}" ]; then
+            echo "🔗 Source:"
+            echo "   • Repository: ${{ github.event.inputs.source-repo }}"
+            echo "   • Commit: ${{ github.event.inputs.source-commit }}"
+            echo "   • Commit URL: https://github.com/${{ github.event.inputs.source-repo }}/commit/${{ github.event.inputs.source-commit }}"
+            echo ""
+          fi
           echo "🔗 Test run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "📊 Report artifact: playwright-report-${{ github.run_id }}"
           echo "⏱️  Completed at: $(date '+%Y-%m-%d %H:%M:%S UTC')"
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # Cleanup (on same runner where VMs exist!)
+      - name: Cleanup VMs
+        if: always() && github.event.inputs.enable-vms != 'false'
+        uses: rediacc/ops/.github/actions/cleanup-vms@main
+        with:
+          provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}
 
       - name: Cleanup Elite Services
         if: always()
@@ -405,36 +427,3 @@ jobs:
           echo "Cleaning up Elite services..."
           ./go down || true
           echo "✅ Services stopped"
-
-  # Job 4: Cleanup (always runs)
-  cleanup:
-    name: Cleanup
-    runs-on: ubuntu-latest
-    needs: [vm-provisioning, e2e-tests]
-    if: always()
-
-    steps:
-      - name: Checkout SDK Repository
-        if: needs.vm-provisioning.result == 'success'
-        uses: actions/checkout@v4
-        with:
-          repository: rediacc/ops
-          ref: main
-
-      - name: Cleanup VMs
-        if: needs.vm-provisioning.result == 'success'
-        uses: ./.github/actions/cleanup-vms
-        with:
-          provider: ${{ github.event.inputs.vm-provider || env.DEFAULT_VM_PROVIDER }}
-
-      - name: Cleanup Summary
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🧹 CLEANUP COMPLETE"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "Job Results:"
-          echo "   • VM Provisioning: ${{ needs.vm-provisioning.result || 'skipped' }}"
-          echo "   • E2E Tests: ${{ needs.e2e-tests.result }}"
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

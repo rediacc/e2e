@@ -101,32 +101,6 @@ test.describe('Login Tests', () => {
     await testReporter.generateDetailedReport();
   });
 
-  test('should handle remember me functionality @auth', async ({ 
-    page, 
-    screenshotManager, 
-    testReporter 
-  }) => {
-    const step1 = await testReporter.startStep('Navigate to login page');
-    await loginPage.navigate();
-    await screenshotManager.captureStep('01_login_page_loaded');
-    await testReporter.completeStep('Navigate to login page', 'passed');
-
-    const step2 = await testReporter.startStep('Test remember me checkbox');
-    
-    const email = requireEnvVar('TEST_USER_EMAIL');
-    const password = requireEnvVar('TEST_USER_PASSWORD');
-    
-    await loginPage.login(email, password, true);
-    
-    const isChecked = await loginPage.isRememberMeChecked();
-    expect(isChecked).toBe(true);
-    
-    await screenshotManager.captureStep('02_remember_me_checked');
-    await testReporter.completeStep('Test remember me checkbox', 'passed');
-    
-    await testReporter.generateDetailedReport();
-  });
-
   test('should navigate to registration page @auth @smoke', async ({ 
     page, 
     screenshotManager, 

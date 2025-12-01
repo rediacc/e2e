@@ -71,15 +71,16 @@ export default test.defineConfig({
       use: { ...test.devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...test.devices['Desktop Firefox'] },
-    },
+    // Firefox and WebKit disabled - not installed in CI environment
+    // {
+    //   name: 'firefox',
+    //   use: { ...test.devices['Desktop Firefox'] },
+    // },
 
-    {
-      name: 'webkit',
-      use: { ...test.devices['Desktop Safari'] },
-    },
+    // {
+    //   name: 'webkit',
+    //   use: { ...test.devices['Desktop Safari'] },
+    // },
 
     /* Test against mobile viewports. */
     // {

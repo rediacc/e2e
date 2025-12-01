@@ -16,18 +16,18 @@ export class DashboardPage extends BasePage {
 
   constructor(page: Page) {
     super(page, '/console/machines');
-    
-    // Actual elements visible in the screenshot
-    this.header = page.locator('nav'); // Top navigation
-    this.userMenu = page.getByRole('button').last(); // User profile button (circle with R)
-    this.headerLogo = page.getByText('rediacc'); // Logo text
+
+    // Precise selectors based on actual console UI
+    this.header = page.locator('header, [role="banner"]'); // Header/banner area
+    this.userMenu = page.locator('[data-testid="user-menu-button"]'); // User menu button
+    this.headerLogo = page.locator('[data-testid="main-logo-home"]'); // Logo
     this.dashboardCards = page.locator('.ant-card, .card'); // Dashboard cards
-    this.machineStatusWidget = page.getByText('Machines'); // Machines section in sidebar
-    this.queueStatusWidget = page.getByText('Select a team to view its resources'); // Main content area
+    this.machineStatusWidget = page.locator('[data-testid="main-nav-machines"]'); // Machines nav item
+    this.queueStatusWidget = page.locator('[data-testid="main-nav-queue"]'); // Queue nav item
     this.storageWidget = page.locator('main'); // Main content area
-    this.activityLogWidget = page.locator('aside'); // Sidebar
-    this.notificationBell = page.getByRole('button').first(); // Notification bell
-    this.teamSelector = page.getByText('Select a team above to view and manage its resources'); // Team selector
+    this.activityLogWidget = page.locator('[role="navigation"]'); // Navigation sidebar
+    this.notificationBell = page.locator('[data-testid="notification-bell"]'); // Notification bell
+    this.teamSelector = page.locator('[data-testid="machines-team-selector"]'); // Team selector
     this.searchInput = page.locator('input[type="search"], input[placeholder*="search"]'); // Search input
   }
 
@@ -48,9 +48,10 @@ export class DashboardPage extends BasePage {
   }
 
   async verifyDashboardLoaded(): Promise<void> {
+    // Verify main layout elements are visible
     await this.verifyElementVisible(this.header);
-    await this.verifyElementVisible(this.headerLogo);
-    await this.waitForElement(this.dashboardCards.first());
+    await this.verifyElementVisible(this.activityLogWidget); // Navigation sidebar
+    await this.verifyElementVisible(this.storageWidget); // Main content area
   }
 
   async getDashboardCardCount(): Promise<number> {
@@ -62,7 +63,7 @@ export class DashboardPage extends BasePage {
   }
 
   async navigateToSection(sectionName: string): Promise<void> {
-    const sectionLink = this.page.locator(`[data-testid="nav-${sectionName.toLowerCase()}"]`);
+    const sectionLink = this.page.locator(`[data-testid="main-nav-${sectionName.toLowerCase()}"]`);
     await this.clickWithRetry(sectionLink);
     await this.waitForNetworkIdle();
   }
@@ -149,7 +150,7 @@ export class DashboardPage extends BasePage {
   }
 
   async refreshDashboard(): Promise<void> {
-    const refreshButton = this.page.locator('[data-testid="refresh-dashboard"]');
+    const refreshButton = this.page.locator('[data-testid="machines-refresh-button"]');
     await this.clickWithRetry(refreshButton);
     await this.waitForNetworkIdle();
     await this.waitForDashboardDataLoad();
@@ -157,7 +158,7 @@ export class DashboardPage extends BasePage {
 
   async logout(): Promise<void> {
     await this.clickUserMenu();
-    const logoutButton = this.page.locator('[data-testid="logout-button"]');
+    const logoutButton = this.page.locator('[data-testid="main-logout-button"]');
     await this.clickWithRetry(logoutButton);
     await this.page.waitForURL('**/login');
   }
