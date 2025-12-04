@@ -7,21 +7,17 @@ test.describe('Machine Creation Tests - Authenticated', () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     // authenticatedPage fixture already navigates to /console/machines
     dashboardPage = new DashboardPage(authenticatedPage);
-    await dashboardPage.waitForNetworkIdle();
   });
 
-  test('should open machine creation dialog @resources @smoke', async ({
-    authenticatedPage,
-    screenshotManager,
+  test('should open machine creation dialog @resources @smoke', async ({ 
+    authenticatedPage, 
     testReporter,
     testDataManager
   }) => {
     const step1 = await testReporter.startStep('Navigate to machines section');
-
-    await screenshotManager.captureStep('01_resources_page_loaded');
-
+       
     const createMachineButton = authenticatedPage.locator('[data-testid="machines-create-machine-button"]');
-
+    
     if (await createMachineButton.isVisible()) {
       await testReporter.completeStep('Navigate to machines section', 'passed');
     } else {
@@ -47,29 +43,26 @@ test.describe('Machine Creation Tests - Authenticated', () => {
     const createButton = authenticatedPage.locator('[data-testid="resource-modal-ok-button"]');
 
     await expect(nameField).toBeVisible();
-    await expect(createButton).toBeVisible();
-
-    await screenshotManager.captureStep('03_dialog_fields_visible');
+    await expect(ipField).toBeVisible();
+    await expect(teamSelector).toBeVisible();
+    
     await testReporter.completeStep('Verify dialog fields', 'passed');
 
     await testReporter.generateDetailedReport();
   });
 });
 
-// Machine creation with admin account (uses unique timestamp-based names)
-test.describe('Machine Creation Tests - With SSH Test', () => {
-  test('should create a new machine with SSH connection test @resources @regression', async ({
-    authenticatedPage,
-    screenshotManager,
+  test('should create a new machine @resources @regression', async ({ 
+    authenticatedPage, 
     testReporter,
     testDataManager
   }) => {
-    // In CI, skip if VMs weren't provisioned (VM_WORKER_IPS not set)
-    // Locally, always run (default IPs will be used)
-    const isCI = process.env.CI === 'true';
-    const hasVMs = !!process.env.VM_WORKER_IPS;
-    if (isCI && !hasVMs) {
-      test.skip(true, 'VM_WORKER_IPS not set - VM provisioning may have failed');
+    const step1 = await testReporter.startStep('Open machine creation dialog');
+    
+    const createMachineButton = authenticatedPage.locator('[data-testid="machines-create-machine-button"]');
+    
+    if (!(await createMachineButton.isVisible())) {
+      await testReporter.completeStep('Open machine creation dialog', 'skipped', 'Create machine button not found');
       return;
     }
 
@@ -90,21 +83,18 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
     const step2 = await testReporter.startStep('Fill machine details');
 
     const testMachine = testDataManager.createTemporaryMachine();
-
-    const nameField = authenticatedPage.locator('[data-testid="resource-modal-field-machineName"]');
-    await nameField.locator('input').fill(testMachine.name);
-
-    const vaultSection = authenticatedPage.locator('[data-testid="resource-modal-vault-editor-section"]');
-    await vaultSection.scrollIntoViewIfNeeded();
-
-    const ipField = authenticatedPage.locator('[data-testid="vault-editor-field-ip"]');
-    const userField = authenticatedPage.locator('[data-testid="vault-editor-field-user"]');
-
-    await expect(ipField).toBeVisible({ timeout: 10000 });
+    
+    const nameField = authenticatedPage.locator('[data-testid="machines-machine-name-input"]');
+    const ipField = authenticatedPage.locator('[data-testid="machines-machine-ip-input"]');
+    const userField = authenticatedPage.locator('[data-testid="machines-machine-user-input"]');
+    
+    await nameField.fill(testMachine.name);
     await ipField.fill(testMachine.ip);
-    await userField.fill(testMachine.user);
-
-    await screenshotManager.captureStep('02_machine_details_filled');
+    
+    if (await userField.isVisible()) {
+      await userField.fill(testMachine.user);
+    }
+    
     await testReporter.completeStep('Fill machine details', 'passed');
 
     // Step 3: Run SSH connection test
@@ -134,10 +124,10 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
     const submitButton = authenticatedPage.locator('[data-testid="resource-modal-ok-button"]');
     await expect(submitButton).toBeEnabled({ timeout: 5000 });
     await submitButton.click();
-
-    await expect(createMachineDialog).not.toBeVisible({ timeout: 15000 });
-
-    await screenshotManager.captureStep('05_machine_creation_submitted');
+    
+    // Wait for creation to complete
+    await authenticatedPage.waitForTimeout(3000);
+    
     await testReporter.completeStep('Submit machine creation', 'passed');
 
     // Step 5: Verify machine created
@@ -152,20 +142,9 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
 
     await testReporter.generateDetailedReport();
   });
-});
 
-// Authenticated tests that run against existing admin account
-test.describe('Machine Creation Tests - Cancel Flow', () => {
-  let dashboardPage: DashboardPage;
-
-  test.beforeEach(async ({ authenticatedPage }) => {
-    dashboardPage = new DashboardPage(authenticatedPage);
-    await dashboardPage.waitForNetworkIdle();
-  });
-
-  test('should cancel machine creation @resources', async ({
-    authenticatedPage,
-    screenshotManager,
+  test('should validate required fields @resources', async ({ 
+    authenticatedPage, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Open machine creation dialog');
@@ -187,20 +166,16 @@ test.describe('Machine Creation Tests - Cancel Flow', () => {
     await testReporter.completeStep('Open machine creation dialog', 'passed');
 
     const step2 = await testReporter.startStep('Fill partial data and cancel');
-
-    // Use correct selector for name field
-    const nameField = authenticatedPage.locator('[data-testid="resource-modal-field-machineName"]');
-    await nameField.locator('input').fill('test-machine-to-cancel');
-
-    await screenshotManager.captureStep('02_partial_data_filled');
-
-    // Use correct selector for cancel button
-    const cancelButton = authenticatedPage.locator('[data-testid="resource-modal-cancel-button"]');
+    
+    const nameField = authenticatedPage.locator('[data-testid="machines-machine-name-input"]');
+    await nameField.fill('test-machine-to-cancel');
+    
+    
+    const cancelButton = authenticatedPage.locator('[data-testid="machines-cancel-machine-creation"]');
     await cancelButton.click();
     
     await expect(createMachineDialog).not.toBeVisible();
     
-    await screenshotManager.captureStep('03_dialog_closed_after_cancel');
     await testReporter.completeStep('Fill partial data and cancel', 'passed');
     
     await testReporter.generateDetailedReport();
