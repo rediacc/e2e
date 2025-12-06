@@ -91,7 +91,7 @@ export class TestDataManager {
         ip: ip,
         user: process.env.VM_USR || 'runner',
         team: 'Private Team',
-        datastore: '/mnt/datastore'
+        datastore: '/mnt/rediacc'
       })),
       repositories: [
         {

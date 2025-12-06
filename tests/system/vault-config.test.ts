@@ -129,7 +129,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
         if (!value) {
           const placeholder = (await field.getAttribute('placeholder')) || '';
           if (placeholder.toLowerCase().includes('datastore')) {
-            await field.fill('/mnt/datastore');
+            await field.fill('/mnt/rediacc');
           } else if (placeholder) {
             await field.fill('default_value');
           }
