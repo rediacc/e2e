@@ -216,27 +216,42 @@ jobs:
 
           timeout 60 bash -c 'until ./go health; do sleep 2; done'
 
-          # Install rediacc CLI - try local /pypi/ first, fallback to public PyPI
+          # Install rediacc CLI from local /pypi/ (embedded in web image)
+          # Note: rediacc is NOT published to public PyPI - must use embedded package
           LOCAL_PYPI="http://localhost/pypi/"
           TAG_VERSION="${TAG:-latest}"
+
+          # Check if CLI packages are embedded in the web image
+          echo "Checking for embedded CLI packages..."
+          if ! curl -sf "http://localhost/cli-packages.json" > /dev/null 2>&1; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "ERROR: CLI packages not embedded in web image"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "The web Docker image does not have CLI packages embedded."
+            echo "Rebuild the images with:"
+            echo "  ./go build pypi    # Build Python CLI package"
+            echo "  ./go build prod    # Build Docker images (embeds CLI packages)"
+            echo ""
+            exit 1
+          fi
 
           if [ "$TAG_VERSION" = "latest" ]; then
             if pip install --quiet --find-links "$LOCAL_PYPI" --trusted-host localhost rediacc 2>/dev/null; then
               echo "✓ Installed rediacc from local /pypi/"
             else
-              echo "Local package not found, installing from PyPI..."
-              pip install --quiet rediacc
-              echo "✓ Installed rediacc from PyPI"
+              echo "ERROR: Failed to install rediacc from local /pypi/"
+              exit 1
             fi
           else
             if pip install --quiet --find-links "$LOCAL_PYPI" --trusted-host localhost "rediacc==$TAG_VERSION" 2>/dev/null; then
               echo "✓ Installed rediacc $TAG_VERSION from local /pypi/"
-            elif pip install --quiet "rediacc==$TAG_VERSION" 2>/dev/null; then
-              echo "✓ Installed rediacc $TAG_VERSION from PyPI"
+            elif pip install --quiet --find-links "$LOCAL_PYPI" --trusted-host localhost rediacc 2>/dev/null; then
+              echo "⚠ Version $TAG_VERSION not found, installed latest from local /pypi/"
             else
-              echo "⚠ Version $TAG_VERSION not available, falling back to latest..."
-              pip install --quiet rediacc
-              echo "✓ Installed rediacc (latest) from PyPI"
+              echo "ERROR: Failed to install rediacc from local /pypi/"
+              exit 1
             fi
           fi
 
