@@ -114,26 +114,10 @@ test.describe('Repository Up Tests', () => {
 
     const stepSelectUp = await testReporter.startStep('Select up action from actions menu');
 
-    // Try to find "up" action in dropdown using multiple strategies
-    const upActionCandidates = [
-      '.ant-dropdown [role="menuitem"]:has-text("up")',
-      '.ant-dropdown button:has-text("up")',
-      '.ant-dropdown-menu [role="menuitem"]:has-text("up")',
-      '.ant-dropdown span:has-text("up")'
-    ];
+    // Use data-testid for dropdown menu item
+    const upAction = authenticatedPage.locator('[data-testid="repo-action-up"]');
 
-    let upActionFound = false;
-
-    for (const selector of upActionCandidates) {
-      const candidate = authenticatedPage.locator(selector).first();
-      if (await candidate.isVisible()) {
-        await candidate.click();
-        upActionFound = true;
-        break;
-      }
-    }
-
-    if (!upActionFound) {
+    if (!(await upAction.isVisible({ timeout: 2000 }).catch(() => false))) {
       await screenshotManager.captureStep('up_action_not_found');
       await testReporter.completeStep(
         'Select up action from actions menu',
@@ -142,6 +126,8 @@ test.describe('Repository Up Tests', () => {
       );
       return;
     }
+
+    await upAction.click();
 
     await authenticatedPage.waitForTimeout(500);
     await screenshotManager.captureStep('up_action_clicked');

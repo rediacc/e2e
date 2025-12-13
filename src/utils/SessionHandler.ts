@@ -13,25 +13,25 @@ export class SessionHandler {
    */
   async dismissSessionExpiredModal(): Promise<boolean> {
     try {
-      const sessionExpiredModal = this.page.locator('.ant-modal-content').filter({ hasText: 'Session Expired' });
+      const sessionExpiredModal = this.page.locator('[data-testid="session-expired-modal"]');
       const isVisible = await sessionExpiredModal.isVisible({ timeout: 1000 }).catch(() => false);
 
       if (isVisible) {
         console.log('⚠️ Session expired modal detected - dismissing...');
 
-        // Click the X button to close the modal without redirecting
-        const closeButton = sessionExpiredModal.locator('.ant-modal-close');
-        if (await closeButton.isVisible({ timeout: 500 }).catch(() => false)) {
-          await closeButton.click();
-          console.log('✅ Session expired modal dismissed via close button');
-          return true;
-        }
-
-        // Fallback: Click "Stay Logged Out" button
-        const stayLoggedOutButton = sessionExpiredModal.getByRole('button', { name: 'Stay Logged Out' });
+        // Click the "Stay Logged Out" button to dismiss the modal
+        const stayLoggedOutButton = this.page.locator('[data-testid="session-expired-stay-button"]');
         if (await stayLoggedOutButton.isVisible({ timeout: 500 }).catch(() => false)) {
           await stayLoggedOutButton.click();
           console.log('✅ Session expired modal dismissed via Stay Logged Out button');
+          return true;
+        }
+
+        // Fallback: Click "Continue to Login" button
+        const continueToLoginButton = this.page.locator('[data-testid="session-expired-login-button"]');
+        if (await continueToLoginButton.isVisible({ timeout: 500 }).catch(() => false)) {
+          await continueToLoginButton.click();
+          console.log('✅ Session expired modal dismissed via Continue to Login button');
           return true;
         }
       }
@@ -48,12 +48,12 @@ export class SessionHandler {
   setupAutoHandler(): void {
     // Set up a mutation observer to detect when modal appears
     this.page.addLocatorHandler(
-      this.page.locator('.ant-modal-content').filter({ hasText: 'Session Expired' }),
-      async (modal) => {
+      this.page.locator('[data-testid="session-expired-modal"]'),
+      async () => {
         console.log('⚠️ Session expired modal appeared - auto-dismissing...');
-        const closeButton = modal.locator('.ant-modal-close');
-        if (await closeButton.isVisible({ timeout: 500 }).catch(() => false)) {
-          await closeButton.click();
+        const stayLoggedOutButton = this.page.locator('[data-testid="session-expired-stay-button"]');
+        if (await stayLoggedOutButton.isVisible({ timeout: 500 }).catch(() => false)) {
+          await stayLoggedOutButton.click();
         }
       }
     );

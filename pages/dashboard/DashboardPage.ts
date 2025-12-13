@@ -17,18 +17,18 @@ export class DashboardPage extends BasePage {
   constructor(page: Page) {
     super(page, '/console/machines');
 
-    // Precise selectors based on actual console UI
-    this.header = page.locator('header, [role="banner"]'); // Header/banner area
+    // All selectors use data-testid for stability
+    this.header = page.locator('[data-testid="main-header"]'); // Main header (fallback to header tag)
     this.userMenu = page.locator('[data-testid="user-menu-button"]'); // User menu button
     this.headerLogo = page.locator('[data-testid="main-logo-home"]'); // Logo
-    this.dashboardCards = page.locator('.ant-card, .card'); // Dashboard cards
+    this.dashboardCards = page.locator('[data-testid="dashboard-card"]'); // Dashboard cards
     this.machineStatusWidget = page.locator('[data-testid="main-nav-machines"]'); // Machines nav item
     this.queueStatusWidget = page.locator('[data-testid="main-nav-queue"]'); // Queue nav item
-    this.storageWidget = page.locator('main'); // Main content area
-    this.activityLogWidget = page.locator('[role="navigation"]'); // Navigation sidebar
+    this.storageWidget = page.locator('[data-testid="main-content"]'); // Main content area
+    this.activityLogWidget = page.locator('[data-testid="main-sidebar"]'); // Navigation sidebar
     this.notificationBell = page.locator('[data-testid="notification-bell"]'); // Notification bell
     this.teamSelector = page.locator('[data-testid="machines-team-selector"]'); // Team selector
-    this.searchInput = page.locator('input[type="search"], input[placeholder*="search"]'); // Search input
+    this.searchInput = page.locator('[data-testid="machines-search-input"]'); // Search input
   }
 
   getPageLocators(): Record<string, Locator> {

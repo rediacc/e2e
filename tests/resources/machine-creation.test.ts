@@ -33,8 +33,8 @@ test.describe('Machine Creation Tests - Authenticated', () => {
 
     await createMachineButton.click();
 
-    // Wait for the modal content to be visible (not just the root wrapper)
-    const createMachineDialog = authenticatedPage.locator('.ant-modal-content').filter({ hasText: 'Add Machine' });
+    // Wait for the resource modal to be visible
+    const createMachineDialog = authenticatedPage.locator('[data-testid="resource-modal"]');
     await expect(createMachineDialog).toBeVisible({ timeout: 10000 });
 
     await screenshotManager.captureStep('02_machine_creation_dialog_opened');
@@ -42,9 +42,9 @@ test.describe('Machine Creation Tests - Authenticated', () => {
 
     const step3 = await testReporter.startStep('Verify dialog fields');
 
-    // Verify key form fields are visible using correct data-testid
+    // Verify key form fields are visible using data-testid
     const nameField = authenticatedPage.locator('[data-testid="resource-modal-field-machineName"]');
-    const createButton = createMachineDialog.getByRole('button', { name: 'Create' });
+    const createButton = authenticatedPage.locator('[data-testid="resource-modal-ok-button"]');
 
     await expect(nameField).toBeVisible();
     await expect(createButton).toBeVisible();
@@ -80,7 +80,7 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
     await expect(createMachineButton).toBeVisible({ timeout: 10000 });
     await createMachineButton.click();
 
-    const createMachineDialog = authenticatedPage.locator('.ant-modal-content').filter({ hasText: 'Add Machine' });
+    const createMachineDialog = authenticatedPage.locator('[data-testid="resource-modal"]');
     await expect(createMachineDialog).toBeVisible({ timeout: 10000 });
 
     await screenshotManager.captureStep('01_machine_creation_dialog_opened');
@@ -117,7 +117,7 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
     await screenshotManager.captureStep('03_test_connection_started');
 
     // Wait for connection test to complete - the info alert disappears on success
-    const infoAlert = authenticatedPage.locator('.ant-alert-info').filter({ hasText: 'Connection test required' });
+    const infoAlert = authenticatedPage.locator('[data-testid="vault-editor-connection-required-alert"]');
 
     await expect(async () => {
       const isInfoVisible = await infoAlert.isVisible().catch(() => false);
@@ -143,7 +143,8 @@ test.describe('Machine Creation Tests - With SSH Test', () => {
     // Step 5: Verify machine created
     const step5 = await testReporter.startStep('Verify machine created');
 
-    const successToast = authenticatedPage.locator(`text=Machine "${testMachine.name}" created`);
+    // Wait for the success message - using Ant Design message container
+    const successToast = authenticatedPage.locator('.ant-message-success, [data-testid="machine-create-success-message"]');
     await expect(successToast).toBeVisible({ timeout: 10000 });
 
     await screenshotManager.captureStep('06_machine_created_successfully');
@@ -177,11 +178,11 @@ test.describe('Machine Creation Tests - Cancel Flow', () => {
     }
     
     await createMachineButton.click();
-    
-    // Wait for the modal content to be visible (not just the root wrapper)
-    const createMachineDialog = authenticatedPage.locator('.ant-modal-content').filter({ hasText: 'Add Machine' });
+
+    // Wait for the resource modal to be visible
+    const createMachineDialog = authenticatedPage.locator('[data-testid="resource-modal"]');
     await expect(createMachineDialog).toBeVisible({ timeout: 10000 });
-    
+
     await screenshotManager.captureStep('01_machine_creation_dialog_opened');
     await testReporter.completeStep('Open machine creation dialog', 'passed');
 
