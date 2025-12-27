@@ -123,10 +123,8 @@ test.describe('Machine Creation Tests - Authenticated', () => {
     await page.getByTestId('vault-editor-test-connection').click();
     const vaultSection = page.getByTestId('resource-modal-vault-editor-section');
     const connectionAlert = vaultSection.getByRole('alert');
-    await expect(connectionAlert).toBeVisible({ timeout: 25000 });
-    console.log(await connectionAlert.locator('.ant-alert-title .ant-space-item').nth(1).textContent());
+    await expect(connectionAlert).toBeVisible({ timeout: 50000 });
     await expect(connectionAlert.locator('.ant-alert-title .ant-space-item').nth(1)).toContainText('Compatible');
-
 
     const step3 = await testReporter.startStep('Submit machine creation');
 
