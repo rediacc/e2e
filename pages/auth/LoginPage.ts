@@ -135,8 +135,10 @@ export class LoginPage extends BasePage {
     const email = requireEnvVar('TEST_USER_EMAIL');
     const password = requireEnvVar('TEST_USER_PASSWORD');
     
+    console.log('   🔐 Performing authentication...');
     await this.login(email, password);
     await this.waitForLoginCompletion();
+    console.log('   ✅ Authentication successful');
   }
 
   async fillRegistrationForm(

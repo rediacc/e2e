@@ -37,10 +37,8 @@ test.describe('Registration Tests', () => {
 
     await loginPage.completeRegistrationVerification(verificationCode);
 
-    
-
     await testReporter.completeStep('Submit registration form', 'passed');
 
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 });

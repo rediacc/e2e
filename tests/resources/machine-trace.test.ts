@@ -1,20 +1,25 @@
 import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
+import { LoginPage } from '../../pages/auth/LoginPage';
 
 // Machine trace tests migrated from Python MachineTraceTest
 // Focus: open machine trace for a machine, verify trace view, sort columns and check entries
 
 test.describe('Machine Trace Tests', () => {
   let dashboardPage: DashboardPage;
+  let loginPage: LoginPage;
 
-  test.beforeEach(async ({ authenticatedPage }) => {
-    // authenticatedPage fixture already navigates to /console/machines
-    dashboardPage = new DashboardPage(authenticatedPage);
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    dashboardPage = new DashboardPage(page);
+
+    await loginPage.navigate();
+    await loginPage.performQuickLogin();
     await dashboardPage.waitForNetworkIdle();
   });
 
   test('should open machine trace and view task history @resources @trace @regression', async ({
-    authenticatedPage,
+    page,
     screenshotManager,
     testReporter,
     testDataManager
@@ -23,37 +28,52 @@ test.describe('Machine Trace Tests', () => {
 
     const machine = testDataManager.getMachine();
 
-    let machineRow = authenticatedPage.locator(`tr:has-text("${machine.name}")`).first();
+    // Check if machine appears in the list
+    const machineList = page.getByTestId('machine-table');
+    await expect(machineList).toBeVisible({ timeout: 10000 });
 
-    if (!(await machineRow.isVisible())) {
-      const machineCandidates = authenticatedPage.locator('tr:has(td)');
+    // Tablo verilerinin gelmesini bekle (en az bir satir gorunene kadar)
+    await expect(machineList.locator('tbody tr.machine-table-row').first()).toBeVisible({ timeout: 20000 });
+
+    // Try to find the specific machine row by data-row-key
+    let machineRow = machineList.locator(`tbody tr[data-row-key*="${machine.name}"]`);
+
+    if (!(await machineRow.isVisible({ timeout: 20000 }).catch(() => false))) {
+      // Fallback: get any machine row from the table (skip measure row)
+      const machineCandidates = machineList.locator('tbody tr.machine-table-row');
 
       if ((await machineCandidates.count()) === 0) {
-        await screenshotManager.captureStep('no_machines_found_for_trace');
-        await testReporter.completeStep(
-          'Locate machine for trace',
-          'skipped',
-          'No machine rows found in resources table'
-        );
+        await testReporter.completeStep('Locate machine for trace','skipped','No machine rows found in resources table');
         return;
       }
 
+      // Use first available machine
       machineRow = machineCandidates.first();
     }
 
-    await screenshotManager.captureStep('machine_row_found_for_trace');
-    await testReporter.completeStep('Locate machine for trace', 'passed');
+    // Find trace button within the row
+    const traceButton = machineRow.locator('[data-testid^="machine-trace-"]').first();
+    await expect(traceButton).toBeVisible({ timeout: 5000 });
+    await traceButton.click();
+    
+    // Wait for audit trace dialog to open
+    const auditRecordsElement = page.getByTestId('audit-trace-total-records');
+    await expect(auditRecordsElement).toBeVisible({ timeout: 10000 });
+    
+    // Get total records count from second span
+    const totalRecordsSpan = auditRecordsElement.locator('span').nth(1);
+    await expect(totalRecordsSpan).toBeVisible({ timeout: 5000 });
+    const totalRecordsText = await totalRecordsSpan.textContent();
+    const totalRecords = parseInt(totalRecordsText || '0', 10);
+    expect(totalRecords).toBeGreaterThan(0);
 
+    await testReporter.completeStep(`Locate machine for trace - Found audit records: ${totalRecords}`, 'passed');
     const stepOpenTrace = await testReporter.startStep('Open machine trace view');
 
-    // Click on machine row to select it, then look for trace/queue action
-    await machineRow.click();
-    await authenticatedPage.waitForTimeout(500);
+    // Look for queue trace button using getByTestId pattern
+    const queueButton = page.getByTestId('machines-queue-trace-button');
 
-    // Look for queue trace button in the machine row actions
-    const traceButton = machineRow.locator('[data-testid*="queue"], button:has-text("Queue")').first();
-
-    if (!(await traceButton.isVisible())) {
+    if (!(await queueButton.isVisible({ timeout: 5000 }).catch(() => false))) {
       await screenshotManager.captureStep('trace_button_not_found');
       await testReporter.completeStep(
         'Open machine trace view',
@@ -63,20 +83,19 @@ test.describe('Machine Trace Tests', () => {
       return;
     }
 
-    await traceButton.click();
-    await authenticatedPage.waitForTimeout(1000);
+    await queueButton.click();
 
-    // Use precise selector for queue trace modal
-    const traceModal = authenticatedPage.locator('[data-testid="queue-trace-modal"], [data-testid="machines-queue-trace-modal"]');
+    // Use getByTestId for queue trace modal
+    const traceModal = page.getByTestId('queue-trace-modal');
 
     try {
       await expect(traceModal).toBeVisible({ timeout: 15000 });
       await screenshotManager.captureStep('trace_modal_opened');
-      await testReporter.completeStep('Open machine trace view', 'passed');
+      await testReporter.completeStep(`Open machine trace view - Trace modal opened`, 'passed');
     } catch (error) {
       await screenshotManager.captureStep('trace_modal_not_visible');
       await testReporter.completeStep(
-        'Open machine trace view',
+        'Open machine trace view - Trace modal not visible',
         'failed',
         'Trace modal did not become visible'
       );
@@ -88,43 +107,31 @@ test.describe('Machine Trace Tests', () => {
     const columnNames = ['Updated', 'Created', 'Status', 'Task', 'Bridge'];
 
     for (const columnName of columnNames) {
-      const columnSelectors = [
-        `th:has-text("${columnName}")`,
-        `.ant-table-column-title:has-text("${columnName}")`,
-        `[role="columnheader"]:has-text("${columnName}")`,
-        `th[title*="${columnName}"]`
-      ];
+      // Try to find column header within the modal
+      const columnHeader = traceModal.locator(`th:has-text("${columnName}")`).first();
 
-      let columnClicked = false;
-
-      for (const selector of columnSelectors) {
-        const column = authenticatedPage.locator(selector).first();
-        if (await column.isVisible()) {
-          await column.click();
-          await authenticatedPage.waitForTimeout(500);
-          columnClicked = true;
-          break;
-        }
-      }
-
-      if (!columnClicked) {
+      if (await columnHeader.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await columnHeader.click();
+        await page.waitForTimeout(500);
+      } else {
         await screenshotManager.captureStep(`trace_column_${columnName}_not_found`);
       }
     }
 
     await screenshotManager.captureStep('trace_table_sorted');
-    await testReporter.completeStep('Sort trace table by common columns', 'passed');
+    await testReporter.completeStep(`Sort trace table by common columns - Trace table sorted`, 'passed');
 
     const stepVerifyRows = await testReporter.startStep('Verify trace entries exist');
 
-    const traceRows = authenticatedPage.locator('tbody tr, .ant-table-tbody tr');
+    // Get trace rows from within the modal
+    const traceRows = traceModal.locator('tbody tr');
 
     const rowCount = await traceRows.count();
 
     if (rowCount === 0) {
       await screenshotManager.captureStep('no_trace_rows_found');
       await testReporter.completeStep(
-        'Verify trace entries exist',
+        'Verify trace entries exist - No trace entries found in table',
         'skipped',
         'No trace entries found in table'
       );
@@ -141,25 +148,25 @@ test.describe('Machine Trace Tests', () => {
       }
 
       await screenshotManager.captureStep('trace_rows_found');
-      await testReporter.completeStep('Verify trace entries exist', 'passed');
+      await testReporter.completeStep(`Verify trace entries exist - Trace entries found in table`, 'passed');
     }
 
     const stepCloseTrace = await testReporter.startStep('Close trace modal');
 
-    // Use precise selector for close button
-    const closeButton = authenticatedPage.locator('[data-testid="queue-trace-close-button"]');
+    // Use getByTestId for close button
+    const closeButton = page.getByTestId('queue-trace-close-button');
 
-    if (await closeButton.isVisible()) {
+    if (await closeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await closeButton.click();
     } else {
       // Fallback to escape key if button not found
-      await authenticatedPage.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await expect(traceModal).not.toBeVisible({ timeout: 5000 });
     await screenshotManager.captureStep('trace_modal_closed');
-    await testReporter.completeStep('Close trace modal', 'passed');
+    await testReporter.completeStep(`Close trace modal - Trace modal closed`, 'passed');
 
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 });

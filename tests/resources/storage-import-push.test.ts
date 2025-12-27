@@ -1,5 +1,6 @@
 import { test } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
+import { LoginPage } from '../../pages/auth/LoginPage';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,15 +12,19 @@ import path from 'path';
 // Tests need to use UI navigation to preserve auth state, but Storage is not in simple mode sidebar
 test.describe.skip('Storage Import and Push Tests', () => {
   let dashboardPage: DashboardPage;
+  let loginPage: LoginPage;
 
-  test.beforeEach(async ({ authenticatedPage }) => {
-    // authenticatedPage fixture already navigates to /console/machines
-    dashboardPage = new DashboardPage(authenticatedPage);
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    dashboardPage = new DashboardPage(page);
+    
+    await loginPage.navigate();
+    await loginPage.performQuickLogin();
     await dashboardPage.waitForNetworkIdle();
   });
 
   test('should import storage configuration and push repository to storage @resources @storage @regression', async ({
-    authenticatedPage,
+    page,
     screenshotManager,
     testReporter,
     testDataManager
@@ -30,11 +35,11 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepOpenStorageTab = await testReporter.startStep('Navigate to storage page');
 
     // Navigate to Storage page directly
-    await authenticatedPage.goto('/console/storage');
+    await page.goto('/console/storage');
     await dashboardPage.waitForNetworkIdle();
 
     // Verify storage table is visible
-    const storageTable = authenticatedPage.locator('[data-testid="resources-storage-table"]');
+    const storageTable = page.locator('[data-testid="resources-storage-table"]');
 
     try {
       await storageTable.waitFor({ state: 'visible', timeout: 10000 });
@@ -53,7 +58,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepOpenImportDialog = await testReporter.startStep('Open storage import dialog');
 
     // Use precise selector for import button
-    const importButton = authenticatedPage.locator('[data-testid="resources-import-button"]');
+    const importButton = page.locator('[data-testid="resources-import-button"]');
 
     try {
       await importButton.waitFor({ state: 'visible', timeout: 5000 });
@@ -69,7 +74,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
     }
 
     // Wait for rclone wizard modal to appear
-    const rcloneWizard = authenticatedPage.locator('[data-testid="resources-rclone-import-wizard"]');
+    const rcloneWizard = page.locator('[data-testid="resources-rclone-import-wizard"]');
     await rcloneWizard.waitFor({ state: 'visible', timeout: 5000 });
 
     await screenshotManager.captureStep('import_dialog_opened');
@@ -90,12 +95,12 @@ test.describe.skip('Storage Import and Push Tests', () => {
     }
 
     // Use precise selector for file input within rclone wizard upload dragger
-    const uploadDragger = authenticatedPage.locator('[data-testid="rclone-wizard-upload-dragger"]');
+    const uploadDragger = page.locator('[data-testid="rclone-wizard-upload-dragger"]');
     const fileInput = uploadDragger.locator('input[type="file"]');
 
     try {
       await fileInput.setInputFiles(confPath);
-      await authenticatedPage.waitForTimeout(2000);
+      await page.waitForTimeout(2000);
       await screenshotManager.captureStep('conf_file_uploaded');
       await testReporter.completeStep('Upload storage configuration file', 'passed');
     } catch (error) {
@@ -111,13 +116,13 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepImport = await testReporter.startStep('Import storage configuration');
 
     // Use precise selector for import button
-    const importConfirmButton = authenticatedPage.locator('[data-testid="rclone-wizard-import-button"]');
+    const importConfirmButton = page.locator('[data-testid="rclone-wizard-import-button"]');
 
     try {
       await importConfirmButton.waitFor({ state: 'visible', timeout: 5000 });
       if (await importConfirmButton.isEnabled()) {
         await importConfirmButton.click();
-        await authenticatedPage.waitForTimeout(2000);
+        await page.waitForTimeout(2000);
         await screenshotManager.captureStep('import_completed');
         await testReporter.completeStep('Import storage configuration', 'passed');
       } else {
@@ -140,8 +145,8 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepCloseImport = await testReporter.startStep('Close import dialog');
 
     // Use precise selector for close button - try close first, then cancel
-    const closeWizardButton = authenticatedPage.locator('[data-testid="rclone-wizard-close-button"]');
-    const cancelWizardButton = authenticatedPage.locator('[data-testid="rclone-wizard-cancel-button"]');
+    const closeWizardButton = page.locator('[data-testid="rclone-wizard-close-button"]');
+    const cancelWizardButton = page.locator('[data-testid="rclone-wizard-cancel-button"]');
 
     if (await closeWizardButton.isVisible()) {
       await closeWizardButton.click();
@@ -149,21 +154,21 @@ test.describe.skip('Storage Import and Push Tests', () => {
       await cancelWizardButton.click();
     } else {
       // Fallback to escape key only if buttons not found
-      await authenticatedPage.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
     await screenshotManager.captureStep('import_dialog_closed');
     await testReporter.completeStep('Close import dialog', 'passed');
 
     const stepOpenMachinesTab = await testReporter.startStep('Navigate to machines page');
 
     // Navigate directly to machines page
-    await authenticatedPage.goto('/console/machines');
+    await page.goto('/console/machines');
     await dashboardPage.waitForNetworkIdle();
 
     // Verify machines page loaded by checking for create machine button
-    const machinesTable = authenticatedPage.locator('[data-testid="machine-repo-list-table"]');
+    const machinesTable = page.locator('[data-testid="machine-repo-list-table"]');
 
     try {
       await machinesTable.waitFor({ state: 'visible', timeout: 10000 });
@@ -183,14 +188,14 @@ test.describe.skip('Storage Import and Push Tests', () => {
       machine: machine.name
     });
 
-    const machineExpandByTestId = authenticatedPage.locator(
+    const machineExpandByTestId = page.locator(
       `[data-testid="machine-expand-${machine.name}"]`
     );
 
     if (await machineExpandByTestId.isVisible()) {
       await machineExpandByTestId.click({ force: true });
     } else {
-      const machineRow = authenticatedPage.locator(`tr:has-text("${machine.name}")`).first();
+      const machineRow = page.locator(`tr:has-text("${machine.name}")`).first();
       if (await machineRow.isVisible()) {
         const expandButton = machineRow.locator('button').first();
         await expandButton.click({ force: true });
@@ -205,15 +210,15 @@ test.describe.skip('Storage Import and Push Tests', () => {
       }
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
 
-    const machineReposButton = authenticatedPage.locator(
+    const machineReposButton = page.locator(
       `[data-testid="machine-repositories-button-${machine.name}"]`
     );
 
     if (await machineReposButton.isVisible()) {
       await machineReposButton.click();
-      await authenticatedPage.waitForTimeout(1000);
+      await page.waitForTimeout(1000);
     }
 
     await screenshotManager.captureStep('machine_repositories_visible');
@@ -223,10 +228,10 @@ test.describe.skip('Storage Import and Push Tests', () => {
       repository: repository.name
     });
 
-    let repoRow = authenticatedPage.locator(`tr:has-text("${repository.name}")`).first();
+    let repoRow = page.locator(`tr:has-text("${repository.name}")`).first();
 
     if (!(await repoRow.isVisible())) {
-      const repoCandidates = authenticatedPage.locator('tr[data-row-key*="repo"], tr:has-text("repo")');
+      const repoCandidates = page.locator('tr[data-row-key*="repo"], tr:has-text("repo")');
       if ((await repoCandidates.count()) === 0) {
         await screenshotManager.captureStep('repository_not_found');
         await testReporter.completeStep(
@@ -240,7 +245,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
     }
 
     await repoRow.click();
-    await authenticatedPage.waitForTimeout(500);
+    await page.waitForTimeout(500);
 
     await screenshotManager.captureStep('repository_selected_for_push');
     await testReporter.completeStep('Select repository for push', 'passed');
@@ -250,7 +255,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
     let fxButton = repoRow.locator('button').first();
 
     if (!(await fxButton.isVisible())) {
-      fxButton = authenticatedPage.locator('tr:has-text("repo") button').first();
+      fxButton = page.locator('tr:has-text("repo") button').first();
     }
 
     if (!(await fxButton.isVisible())) {
@@ -264,7 +269,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
     }
 
     await fxButton.click();
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
 
     await screenshotManager.captureStep('push_actions_menu_opened');
     await testReporter.completeStep('Open push actions menu', 'passed');
@@ -272,13 +277,13 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepChoosePush = await testReporter.startStep('Choose push action');
 
     // Use precise selector for push function in function modal
-    const functionModal = authenticatedPage.locator('[data-testid="function-modal"], [data-testid="machine-repo-list-function-modal"]');
+    const functionModal = page.locator('[data-testid="function-modal"], [data-testid="machine-repo-list-function-modal"]');
 
     try {
       await functionModal.waitFor({ state: 'visible', timeout: 5000 });
 
       // Select push function using precise selector
-      const pushFunction = authenticatedPage.locator('[data-testid="function-modal-item-push"]');
+      const pushFunction = page.locator('[data-testid="function-modal-item-push"]');
       if (await pushFunction.isVisible()) {
         await pushFunction.click();
       } else {
@@ -291,7 +296,7 @@ test.describe.skip('Storage Import and Push Tests', () => {
         }
       }
 
-      await authenticatedPage.waitForTimeout(1500);
+      await page.waitForTimeout(1500);
       await screenshotManager.captureStep('push_dialog_opened');
       await testReporter.completeStep('Choose push action', 'passed');
     } catch (error) {
@@ -306,35 +311,35 @@ test.describe.skip('Storage Import and Push Tests', () => {
 
     const stepConfigureDestination = await testReporter.startStep('Configure push destination storage');
 
-    const destinationTypeDropdown = authenticatedPage.locator('.ant-select-selector').first();
+    const destinationTypeDropdown = page.locator('.ant-select-selector').first();
 
     if (await destinationTypeDropdown.isVisible()) {
       await destinationTypeDropdown.click();
-      await authenticatedPage.waitForTimeout(500);
+      await page.waitForTimeout(500);
 
-      const storageOption = authenticatedPage.locator(
+      const storageOption = page.locator(
         '.ant-select-item:has-text("storage")'
       ).first();
 
       if (await storageOption.isVisible()) {
         await storageOption.click();
-        await authenticatedPage.waitForTimeout(500);
+        await page.waitForTimeout(500);
       }
     }
 
-    const storageDropdown = authenticatedPage.locator('.ant-select-selector').nth(1);
+    const storageDropdown = page.locator('.ant-select-selector').nth(1);
 
     if (await storageDropdown.isVisible()) {
       await storageDropdown.click();
-      await authenticatedPage.waitForTimeout(500);
+      await page.waitForTimeout(500);
 
-      const storageOption = authenticatedPage.locator(
+      const storageOption = page.locator(
         '.ant-select-item:has-text("microsoft")'
       ).first();
 
       if (await storageOption.isVisible()) {
         await storageOption.click();
-        await authenticatedPage.waitForTimeout(500);
+        await page.waitForTimeout(500);
       }
     }
 
@@ -344,14 +349,14 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepSubmitPush = await testReporter.startStep('Submit push to queue');
 
     // Use precise selector for function modal submit button
-    const submitButton = authenticatedPage.locator('[data-testid="function-modal-submit"]');
+    const submitButton = page.locator('[data-testid="function-modal-submit"]');
 
     try {
       await submitButton.waitFor({ state: 'visible', timeout: 5000 });
       if (await submitButton.isEnabled()) {
-        await authenticatedPage.waitForTimeout(1000);
+        await page.waitForTimeout(1000);
         await submitButton.click();
-        await authenticatedPage.waitForTimeout(2000);
+        await page.waitForTimeout(2000);
         await screenshotManager.captureStep('push_added_to_queue');
         await testReporter.completeStep('Submit push to queue', 'passed');
       } else {
@@ -376,19 +381,20 @@ test.describe.skip('Storage Import and Push Tests', () => {
     const stepCloseQueueTrace = await testReporter.startStep('Close queue trace modal if visible');
 
     // Use precise selector for queue trace close button
-    const queueTraceCloseButton = authenticatedPage.locator('[data-testid="queue-trace-close-button"]');
+    const queueTraceCloseButton = page.locator('[data-testid="queue-trace-close-button"]');
 
     if (await queueTraceCloseButton.isVisible()) {
       await queueTraceCloseButton.click();
     } else {
       // Fallback to escape key only if button not found
-      await authenticatedPage.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
     await screenshotManager.captureStep('queue_trace_closed_after_push');
     await testReporter.completeStep('Close queue trace modal if visible', 'passed');
 
     await testReporter.generateDetailedReport();
+    testReporter.logTestCompletion();
   });
 });

@@ -1,20 +1,25 @@
 import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
+import { LoginPage } from '../../pages/auth/LoginPage';
 
 // Repository up tests migrated from Python RepoUpTest
 // Focus: open resources, expand machine, open repo actions, trigger "up" and verify queue trace
 
 test.describe('Repository Up Tests', () => {
   let dashboardPage: DashboardPage;
+  let loginPage: LoginPage;
 
-  test.beforeEach(async ({ authenticatedPage }) => {
-    // authenticatedPage fixture already navigates to /console/machines
-    dashboardPage = new DashboardPage(authenticatedPage);
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    dashboardPage = new DashboardPage(page);
+    
+    await loginPage.navigate();
+    await loginPage.performQuickLogin();
     await dashboardPage.waitForNetworkIdle();
   });
 
   test('should bring a repository up and open queue trace @resources @repo @regression', async ({
-    authenticatedPage,
+    page,
     screenshotManager,
     testReporter,
     testDataManager
@@ -26,14 +31,14 @@ test.describe('Repository Up Tests', () => {
       machine: machine.name
     });
 
-    const machineExpandByTestId = authenticatedPage.locator(
+    const machineExpandByTestId = page.locator(
       `[data-testid="machine-expand-${machine.name}"]`
     );
 
     if (await machineExpandByTestId.isVisible()) {
       await machineExpandByTestId.click();
     } else {
-      const machineRow = authenticatedPage.locator(`tr:has-text("${machine.name}")`).first();
+      const machineRow = page.locator(`tr:has-text("${machine.name}")`).first();
       if (await machineRow.isVisible()) {
         const expandButton = machineRow.locator('button').first();
         await expandButton.click();
@@ -48,23 +53,23 @@ test.describe('Repository Up Tests', () => {
       }
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
     await screenshotManager.captureStep('machine_expanded');
     await testReporter.completeStep('Open machine repositories', 'passed');
 
     // Ensure repositories section is visible
     const stepEnsureRepos = await testReporter.startStep('Ensure repositories are visible');
 
-    const reposButton = authenticatedPage.locator(
+    const reposButton = page.locator(
       `[data-testid="machine-repositories-button-${machine.name}"]`
     );
 
     if (await reposButton.isVisible()) {
       await reposButton.click();
-      await authenticatedPage.waitForTimeout(1000);
+      await page.waitForTimeout(1000);
     }
 
-    const reposTable = authenticatedPage.locator('[data-testid="machine-repo-list-table"]');
+    const reposTable = page.locator('[data-testid="machine-repo-list-table"]');
 
     if (!(await reposTable.isVisible())) {
       await screenshotManager.captureStep('repositories_not_visible');
@@ -83,13 +88,13 @@ test.describe('Repository Up Tests', () => {
       repository: repository.name
     });
 
-    let repoActions = authenticatedPage.locator(
+    let repoActions = page.locator(
       `[data-testid="machine-repo-list-repo-actions-${repository.name}"]`
     );
 
     if (!(await repoActions.isVisible())) {
       // Fallback: use first actions button under this machine
-      const allRepoActions = authenticatedPage.locator(
+      const allRepoActions = page.locator(
         '[data-testid^="machine-repo-list-repo-actions-"]'
       );
 
@@ -107,7 +112,7 @@ test.describe('Repository Up Tests', () => {
     }
 
     await repoActions.click();
-    await authenticatedPage.waitForTimeout(500);
+    await page.waitForTimeout(500);
 
     await screenshotManager.captureStep('repo_actions_menu_open');
     await testReporter.completeStep('Open repository actions menu', 'passed');
@@ -117,7 +122,22 @@ test.describe('Repository Up Tests', () => {
     // Use data-testid for dropdown menu item
     const upAction = authenticatedPage.locator('[data-testid="repo-action-up"]');
 
+<<<<<<< HEAD
     if (!(await upAction.isVisible({ timeout: 2000 }).catch(() => false))) {
+=======
+    let upActionFound = false;
+
+    for (const selector of upActionCandidates) {
+      const candidate = page.locator(selector).first();
+      if (await candidate.isVisible()) {
+        await candidate.click();
+        upActionFound = true;
+        break;
+      }
+    }
+
+    if (!upActionFound) {
+>>>>>>> e43dd30 (Add multiple test ana new login method)
       await screenshotManager.captureStep('up_action_not_found');
       await testReporter.completeStep(
         'Select up action from actions menu',
@@ -127,16 +147,20 @@ test.describe('Repository Up Tests', () => {
       return;
     }
 
+<<<<<<< HEAD
     await upAction.click();
 
     await authenticatedPage.waitForTimeout(500);
+=======
+    await page.waitForTimeout(500);
+>>>>>>> e43dd30 (Add multiple test ana new login method)
     await screenshotManager.captureStep('up_action_clicked');
     await testReporter.completeStep('Select up action from actions menu', 'passed');
 
     const stepQueueTrace = await testReporter.startStep('Verify queue trace dialog');
 
     // Use precise selector for queue trace dialog
-    const queueDialog = authenticatedPage.locator('[data-testid="queue-trace-modal"], [data-testid="machines-queue-trace-modal"]');
+    const queueDialog = page.locator('[data-testid="queue-trace-modal"], [data-testid="machines-queue-trace-modal"]');
 
     try {
       await expect(queueDialog).toBeVisible({ timeout: 30000 });
@@ -155,19 +179,20 @@ test.describe('Repository Up Tests', () => {
     const stepCloseQueue = await testReporter.startStep('Close queue trace dialog');
 
     // Use precise selector for close button
-    const closeButton = authenticatedPage.locator('[data-testid="queue-trace-close-button"]');
+    const closeButton = page.locator('[data-testid="queue-trace-close-button"]');
 
     if (await closeButton.isVisible()) {
       await closeButton.click();
     } else {
       // Fallback to escape key
-      await authenticatedPage.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
     }
 
-    await authenticatedPage.waitForTimeout(1000);
+    await page.waitForTimeout(1000);
     await screenshotManager.captureStep('queue_trace_dialog_closed');
     await testReporter.completeStep('Close queue trace dialog', 'passed');
 
     await testReporter.generateDetailedReport();
+    testReporter.logTestCompletion();
   });
 });

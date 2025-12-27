@@ -40,7 +40,7 @@ test.describe('Login Tests', () => {
     
     await testReporter.completeStep('Verify successful login', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should show error with invalid credentials @auth', async ({ 
@@ -66,7 +66,7 @@ test.describe('Login Tests', () => {
 
     await testReporter.completeStep('Verify error message', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should disable login button with empty fields @auth', async ({ 
@@ -86,7 +86,7 @@ test.describe('Login Tests', () => {
     // This might vary based on the actual implementation
     
     await testReporter.completeStep('Verify empty form state', 'passed');
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
    test('should navigate to registration page @auth @smoke', async ({ 
@@ -106,6 +106,6 @@ test.describe('Login Tests', () => {
     
     await testReporter.completeStep('Click register link', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 });
