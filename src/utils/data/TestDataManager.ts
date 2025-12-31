@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getOpsManager } from '../bridge/OpsManager';
 
 // UUID v4 function
 function v4(): string {
@@ -62,7 +63,7 @@ export class TestDataManager {
   }
 
   private initializeTestData(): void {
-    // Get machine IPs from environment (CI) or use defaults (local)
+    // Get machine IPs from environment (CI) or use OpsManager (local)
     const vmWorkerIps = process.env.VM_WORKER_IPS;
     let machineIps: string[];
 
@@ -71,8 +72,9 @@ export class TestDataManager {
       machineIps = vmWorkerIps.split(',').map(ip => ip.trim()).filter(ip => ip);
       console.log(`Using VM_WORKER_IPS from environment: ${machineIps.join(', ')}`);
     } else {
-      // Local development - use default IPs
-      machineIps = ['192.168.111.11', '192.168.111.12'];
+      // Local development - use OpsManager to calculate IPs dynamically
+      const opsManager = getOpsManager();
+      machineIps = opsManager.getWorkerVMIps();
     }
 
     const defaultData: TestData = {
@@ -168,8 +170,9 @@ export class TestDataManager {
   createTemporaryMachine(team: string = 'Private Team'): TestMachine {
     const timestamp = Date.now();
     const data = this.loadTestData();
-    // Use first machine's IP or fall back to default
-    const machineIp = data.machines[0]?.ip || process.env.VM_WORKER_IPS?.split(',')[0]?.trim() || '192.168.111.11';
+    // Use first machine's IP or fall back to OpsManager calculated IP
+    const opsManager = getOpsManager();
+    const machineIp = data.machines[0]?.ip || process.env.VM_WORKER_IPS?.split(',')[0]?.trim() || opsManager.getWorkerVMIps()[0];
     const machineUser = data.machines[0]?.user || process.env.VM_USR || 'runner';
 
     return {
@@ -177,7 +180,7 @@ export class TestDataManager {
       ip: machineIp,
       user: machineUser,
       team,
-      datastore: '/mnt/datastore'
+      datastore: '/mnt/rediacc'
     };
   }
 

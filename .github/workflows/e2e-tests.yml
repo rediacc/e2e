@@ -264,7 +264,7 @@ jobs:
             --password "$SYSTEM_ADMIN_PASSWORD"
 
           # Fetch team list from API
-          TEAM_LIST_OUTPUT=$(rediacc GetCompanyTeams --output json)
+          TEAM_LIST_OUTPUT=$(rediacc GetOrganizationTeams --output json)
 
           # Get vault content for the target team
           VAULT_CONTENT=$(echo "$TEAM_LIST_OUTPUT" | \
