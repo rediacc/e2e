@@ -100,7 +100,7 @@ test.describe('Container Operations @bridge', () => {
     // Container is already running from setup, so start might return success or "already started"
     const result = await runner.containerStart(testContainer, testRepo, datastorePath, networkId);
     // Accept both success and "already running" as valid outcomes
-    expect(result.exitCode === 0 || result.stderr.includes('already')).toBe(true);
+    expect(result.code === 0 || result.stderr.includes('already')).toBe(true);
   });
 
   test('container_stop should not have shell syntax errors', async () => {
@@ -468,7 +468,7 @@ test.describe('Multiple Container Operations @bridge', () => {
     for (const container of containers) {
       // Containers may already be running, so accept both success and "already running"
       const result = await runner.containerStart(container, repoName, datastorePath, networkId);
-      expect(result.exitCode === 0 || result.stderr.includes('already')).toBe(true);
+      expect(result.code === 0 || result.stderr.includes('already')).toBe(true);
     }
   });
 
