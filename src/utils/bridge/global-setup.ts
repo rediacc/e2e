@@ -65,6 +65,16 @@ async function globalSetup(): Promise<void> {
     }
   }
 
+  // Start RustFS S3 storage on bridge VM for storage tests
+  console.log('\nStarting RustFS S3 storage on bridge VM...');
+  const rustfsResult = await opsManager.startRustFS();
+  if (rustfsResult.success) {
+    console.log(`  ✓ ${rustfsResult.message}`);
+  } else {
+    // RustFS is optional - storage tests will skip if not available
+    console.log(`  ⚠ ${rustfsResult.message} (storage tests will be skipped)`);
+  }
+
   console.log('\n============================================================\n');
 }
 

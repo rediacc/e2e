@@ -109,25 +109,60 @@ test.describe('Multi-Machine Setup @bridge @multi-machine', () => {
   });
 });
 
-test.describe('Multi-Machine Data Transfer @bridge @multi-machine', () => {
+test.describe.serial('Multi-Machine Data Transfer @bridge @multi-machine', () => {
   let runner: BridgeTestRunner;
+  let vm2Runner: BridgeTestRunner;
   const testRepo = `multi-test-${Date.now()}`;
+  const TEST_PASSWORD = 'test-password-123';
+  let crossVMSSHAvailable = false;
 
   test.beforeAll(async () => {
     runner = BridgeTestRunner.forWorker();
+    vm2Runner = BridgeTestRunner.forWorker(2);
+
+    // Note: Datastore initialization is now handled by global setup (Step 5)
+    // All worker VMs have datastores initialized before tests run
+
+    // Create repository before running data transfer tests
+    await runner.repositoryNew(testRepo, '500M', TEST_PASSWORD, DEFAULT_DATASTORE_PATH);
+
+    // Check if SSH from VM1 to VM2 is working (required for push/pull/deploy)
+    try {
+      const sshCheck = await runner.executeOnWorker(`ssh -o BatchMode=yes -o ConnectTimeout=5 ${runner.getWorkerVM2()} echo ok 2>/dev/null`);
+      crossVMSSHAvailable = runner.isSuccess(sshCheck) && sshCheck.stdout.includes('ok');
+    } catch {
+      crossVMSSHAvailable = false;
+    }
+  });
+
+  test.afterAll(async () => {
+    // Cleanup: unmount and delete the test repository
+    if (runner) {
+      try {
+        await runner.repositoryUnmount(testRepo, DEFAULT_DATASTORE_PATH);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryRm(testRepo, DEFAULT_DATASTORE_PATH);
+      } catch { /* ignore */ }
+    }
   });
 
   test('push repository from VM1 to VM2', async () => {
+    test.skip(!crossVMSSHAvailable, 'Cross-VM SSH not available - skipping data transfer tests');
     const result = await runner.push(testRepo, runner.getWorkerVM2(), DEFAULT_DATASTORE_PATH);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('pull repository from VM1 to VM2', async () => {
-    const result = await runner.pull(testRepo, runner.getWorkerVM(), DEFAULT_DATASTORE_PATH);
+    test.skip(!crossVMSSHAvailable, 'Cross-VM SSH not available - skipping data transfer tests');
+    // Use vm2Runner to pull FROM VM1 TO VM2
+    // This tests pulling from source machine (VM1) to destination (VM2)
+    const result = await vm2Runner.pull(testRepo, runner.getWorkerVM(), DEFAULT_DATASTORE_PATH);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('deploy repository to all workers', async () => {
+    test.skip(!crossVMSSHAvailable, 'Cross-VM SSH not available - skipping data transfer tests');
     const workers = runner.getWorkerVMs();
 
     for (const vm of workers) {

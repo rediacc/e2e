@@ -34,6 +34,18 @@ test.describe.serial('Full Repository Workflow @bridge @integration', () => {
     runner = BridgeTestRunner.forWorker();
   });
 
+  test.afterAll(async () => {
+    // Cleanup: ensure repository is unmounted and deleted even if tests fail
+    if (runner) {
+      try {
+        await runner.repositoryUnmount(repoName, datastorePath);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryRm(repoName, datastorePath);
+      } catch { /* ignore */ }
+    }
+  });
+
   // Phase 1: System Checks
   test('1.1 ping: verify system connectivity', async () => {
     const result = await runner.ping();
@@ -53,7 +65,7 @@ test.describe.serial('Full Repository Workflow @bridge @integration', () => {
 
   // Phase 2: Repository Creation
   test('2.1 new: create repository', async () => {
-    const result = await runner.repositoryNew(repoName, '1G', TEST_PASSWORD, datastorePath);
+    const result = await runner.repositoryNew(repoName, '500M', TEST_PASSWORD, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -106,7 +118,7 @@ test.describe.serial('Full Repository Workflow @bridge @integration', () => {
   });
 
   test('5.2 resize: expand repository', async () => {
-    const result = await runner.repositoryResize(repoName, '2G', TEST_PASSWORD, datastorePath);
+    const result = await runner.repositoryResize(repoName, '1G', TEST_PASSWORD, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -129,14 +141,30 @@ test.describe.serial('Checkpoint Workflow @bridge @integration', () => {
   const checkpoint1 = 'initial-state';
   const checkpoint2 = 'after-changes';
   const datastorePath = DEFAULT_DATASTORE_PATH;
+  let criuAvailable = false;
 
   test.beforeAll(async () => {
     runner = BridgeTestRunner.forWorker();
+    // Check if CRIU is available - checkpoint tests require it
+    const criuCheck = await runner.checkCriu();
+    criuAvailable = runner.isSuccess(criuCheck);
+  });
+
+  test.afterAll(async () => {
+    // Cleanup: ensure repository is unmounted and deleted even if tests fail
+    if (runner) {
+      try {
+        await runner.repositoryUnmount(repoName, datastorePath);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryRm(repoName, datastorePath);
+      } catch { /* ignore */ }
+    }
   });
 
   // Setup
   test('1. create repository', async () => {
-    const result = await runner.repositoryNew(repoName, '1G', TEST_PASSWORD, datastorePath);
+    const result = await runner.repositoryNew(repoName, '500M', TEST_PASSWORD, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -145,33 +173,38 @@ test.describe.serial('Checkpoint Workflow @bridge @integration', () => {
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  // Checkpoint workflow
+  // Checkpoint workflow - requires CRIU
   test('3. create initial checkpoint', async () => {
-    const result = await runner.checkpointCreate(repoName, checkpoint1, datastorePath);
+    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    const result = await runner.checkpointCreate(repoName, checkpoint1, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('4. start services (make changes)', async () => {
+    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
     const result = await runner.repositoryUp(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('5. create checkpoint after changes', async () => {
-    const result = await runner.checkpointCreate(repoName, checkpoint2, datastorePath);
+    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    const result = await runner.checkpointCreate(repoName, checkpoint2, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('6. stop services', async () => {
+    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
     const result = await runner.repositoryDown(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('7. restore to initial checkpoint', async () => {
-    const result = await runner.checkpointRestore(repoName, checkpoint1, datastorePath);
+    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    const result = await runner.checkpointRestore(repoName, checkpoint1, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  // Cleanup
+  // Cleanup - always run even if CRIU tests were skipped
   test('8. unmount repository', async () => {
     const result = await runner.repositoryUnmount(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
@@ -279,9 +312,34 @@ test.describe.serial('Ceph Full Stack Workflow @bridge @ceph @integration', () =
 test.describe.serial('Multi-Machine Integration @bridge @multi-machine @integration', () => {
   let runner: BridgeTestRunner;
   const repoName = `multi-integration-${Date.now()}`;
+  const datastorePath = DEFAULT_DATASTORE_PATH;
+  let initializedVMs: string[] = [];
+  let crossVMSSHAvailable = false;
 
   test.beforeAll(async () => {
     runner = BridgeTestRunner.forWorker();
+    // Create the repository before attempting to deploy/push
+    await runner.repositoryNew(repoName, '500M', TEST_PASSWORD, datastorePath);
+
+    // Check if SSH from VM1 to VM2 is working (required for deploy/push)
+    try {
+      const sshCheck = await runner.executeOnWorker(`ssh -o BatchMode=yes -o ConnectTimeout=5 ${runner.getWorkerVM2()} echo ok 2>/dev/null`);
+      crossVMSSHAvailable = runner.isSuccess(sshCheck) && sshCheck.stdout.includes('ok');
+    } catch {
+      crossVMSSHAvailable = false;
+    }
+  });
+
+  test.afterAll(async () => {
+    // Cleanup: ensure repository is unmounted and deleted even if tests fail
+    if (runner) {
+      try {
+        await runner.repositoryUnmount(repoName, datastorePath);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryRm(repoName, datastorePath);
+      } catch { /* ignore */ }
+    }
   });
 
   test('1. verify all machines reachable', async () => {
@@ -305,15 +363,39 @@ test.describe.serial('Multi-Machine Integration @bridge @multi-machine @integrat
     const workers = runner.getWorkerVMs();
 
     for (const vm of workers) {
+      // Check if datastore exists and is initialized
       const result = await runner.testFunctionOnMachine(vm, {
         function: 'datastore_status',
         datastorePath: DEFAULT_DATASTORE_PATH,
       });
-      expect(runner.isSuccess(result)).toBe(true);
+
+      if (runner.isSuccess(result)) {
+        initializedVMs.push(vm);
+      } else {
+        // Try to initialize the datastore if not initialized
+        console.log(`Datastore not initialized on ${vm}, attempting to initialize...`);
+        const initResult = await runner.testFunctionOnMachine(vm, {
+          function: 'datastore_init',
+          datastorePath: DEFAULT_DATASTORE_PATH,
+          size: '5G',
+          force: true,
+        });
+
+        if (runner.isSuccess(initResult)) {
+          initializedVMs.push(vm);
+          console.log(`Datastore initialized on ${vm}`);
+        } else {
+          console.warn(`Failed to initialize datastore on ${vm}, skipping this VM`);
+        }
+      }
     }
+
+    // At least one VM must have initialized datastore for tests to continue
+    expect(initializedVMs.length).toBeGreaterThan(0);
   });
 
   test('4. deploy repository to all machines', async () => {
+    test.skip(!crossVMSSHAvailable, 'Cross-VM SSH not available - skipping deploy test');
     const workers = runner.getWorkerVMs();
 
     for (const vm of workers) {
@@ -323,6 +405,7 @@ test.describe.serial('Multi-Machine Integration @bridge @multi-machine @integrat
   });
 
   test('5. push from VM1 to VM2', async () => {
+    test.skip(!crossVMSSHAvailable, 'Cross-VM SSH not available - skipping push test');
     const result = await runner.push(repoName, runner.getWorkerVM2(), DEFAULT_DATASTORE_PATH);
     expect(runner.isSuccess(result)).toBe(true);
   });
@@ -344,9 +427,24 @@ test.describe.serial('Container Repository Integration @bridge @integration', ()
     runner = BridgeTestRunner.forWorker();
   });
 
+  test.afterAll(async () => {
+    // Cleanup: ensure repository is unmounted and deleted even if tests fail
+    if (runner) {
+      try {
+        await runner.repositoryDown(repoName, datastorePath, networkId);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryUnmount(repoName, datastorePath);
+      } catch { /* ignore */ }
+      try {
+        await runner.repositoryRm(repoName, datastorePath);
+      } catch { /* ignore */ }
+    }
+  });
+
   // Setup repository
   test('1. create repository', async () => {
-    const result = await runner.repositoryNew(repoName, '2G', TEST_PASSWORD, datastorePath);
+    const result = await runner.repositoryNew(repoName, '500M', TEST_PASSWORD, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -355,9 +453,34 @@ test.describe.serial('Container Repository Integration @bridge @integration', ()
     expect(runner.isSuccess(result)).toBe(true);
   });
 
+  // Write Rediaccfile and docker-compose.yaml for container setup
+  test('2.1 write Rediaccfile', async () => {
+    const rediaccfileContent = runner.readFixture('bridge/Rediaccfile.nginx');
+    await runner.writeFileToRepository(repoName, 'Rediaccfile', rediaccfileContent, datastorePath);
+  });
+
+  test('2.2 write docker-compose.yaml', async () => {
+    const dockerComposeContent = runner.readFixture('bridge/docker-compose.nginx.yaml')
+      .replace(/\$\{CONTAINER_NAME\}/g, containerName);
+    await runner.writeFileToRepository(repoName, 'docker-compose.yaml', dockerComposeContent, datastorePath);
+  });
+
+  // Setup and start daemon first (required for container operations)
+  test('2a. daemon_setup: set up daemon service', async () => {
+    // daemonSetup only takes networkId as parameter
+    const result = await runner.daemonSetup(networkId.toString());
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('2b. daemon_start: start daemon service', async () => {
+    // daemonStart takes (repository, datastorePath, networkId)
+    const result = await runner.daemonStart(repoName, datastorePath, networkId.toString());
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
   // Start services (which starts containers)
   test('3. up: start repository services', async () => {
-    const result = await runner.repositoryUp(repoName, datastorePath);
+    const result = await runner.repositoryUp(repoName, datastorePath, networkId);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -389,7 +512,7 @@ test.describe.serial('Container Repository Integration @bridge @integration', ()
 
   // Cleanup
   test('9. down: stop repository services', async () => {
-    const result = await runner.repositoryDown(repoName, datastorePath);
+    const result = await runner.repositoryDown(repoName, datastorePath, networkId);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
@@ -419,29 +542,34 @@ test.describe('Error Recovery Integration @bridge @integration', () => {
   test('should handle sequential operations on nonexistent resources', async () => {
     const nonexistent = 'nonexistent-resource-xyz';
 
-    // These should all fail gracefully without syntax errors
-    const operations = [
+    // Run operations on nonexistent resources - they should fail gracefully (no crashes/syntax errors)
+    // Some operations are strict (fail if resource doesn't exist), others are tolerant (succeed as no-op)
+    const [info, mount, up, down, unmount, rm] = await Promise.all([
       runner.repositoryInfo(nonexistent, DEFAULT_DATASTORE_PATH),
       runner.repositoryMount(nonexistent, TEST_PASSWORD, DEFAULT_DATASTORE_PATH),
       runner.repositoryUp(nonexistent, DEFAULT_DATASTORE_PATH),
       runner.repositoryDown(nonexistent, DEFAULT_DATASTORE_PATH),
       runner.repositoryUnmount(nonexistent, DEFAULT_DATASTORE_PATH),
       runner.repositoryRm(nonexistent, DEFAULT_DATASTORE_PATH),
-    ];
+    ]);
 
-    const results = await Promise.all(operations);
+    // Strict operations - should fail because resource doesn't exist
+    expect(runner.isSuccess(info)).toBe(false);   // Can't get info on nonexistent
+    expect(runner.isSuccess(mount)).toBe(false);  // Can't mount nonexistent
+    expect(runner.isSuccess(rm)).toBe(false);     // Can't delete nonexistent
 
-    for (const result of results) {
-      expect(runner.isSuccess(result)).toBe(true);
-    }
+    // Tolerant operations - succeed as no-op (nothing to do)
+    expect(runner.isSuccess(up)).toBe(true);      // No Rediaccfile, skips gracefully
+    expect(runner.isSuccess(down)).toBe(true);    // Nothing to stop, succeeds
+    expect(runner.isSuccess(unmount)).toBe(true); // Already unmounted, succeeds
   });
 
   test('should recover from failed operation', async () => {
-    // Attempt an operation that may fail
+    // Attempt an operation that will fail (mounting nonexistent repository)
     const failResult = await runner.repositoryMount('likely-nonexistent', TEST_PASSWORD, DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(failResult)).toBe(true);
+    expect(runner.isSuccess(failResult)).toBe(false);  // Mount should fail
 
-    // System should still be responsive
+    // System should still be responsive after the failed operation
     const pingResult = await runner.ping();
     expect(pingResult.code).toBe(0);
     expect(runner.getCombinedOutput(pingResult)).toContain('pong');

@@ -348,4 +348,111 @@ export class InfrastructureManager {
   getOpsManager(): OpsManager {
     return this.opsManager;
   }
+
+  /**
+   * Deploy CRIU to all worker VMs.
+   *
+   * Strategy:
+   * 1. Try to extract CRIU from bridge container (pre-built, fast)
+   * 2. Fall back to building from source if container not available
+   *
+   * CRIU is required for container checkpointing tests.
+   */
+  async deployCRIUToAllVMs(): Promise<void> {
+    console.log('Checking CRIU deployment...');
+
+    const bridgeIP = this.opsManager.getBridgeVMIp();
+    const workerIPs = this.opsManager.getWorkerVMIps();
+    const user = process.env.USER;
+    if (!user) {
+      throw new Error('USER environment variable is not set');
+    }
+
+    // Check if any worker already has CRIU installed
+    let anyNeedsCriu = false;
+    for (const ip of workerIPs) {
+      const result = await this.opsManager.executeOnVM(ip, 'which criu 2>/dev/null');
+      if (result.code !== 0) {
+        anyNeedsCriu = true;
+        break;
+      }
+    }
+
+    if (!anyNeedsCriu) {
+      console.log('  CRIU already installed on all workers');
+      return;
+    }
+
+    // Try to extract CRIU from bridge container
+    let criuSourcePath: string | null = null;
+
+    // Check if bridge container has CRIU
+    const containerCheck = await this.opsManager.executeOnVM(
+      bridgeIP,
+      "docker ps --filter 'name=bridge' --format '{{.Names}}' | head -1"
+    );
+
+    if (containerCheck.code === 0 && containerCheck.stdout.trim()) {
+      const containerName = containerCheck.stdout.trim();
+      console.log(`  Found bridge container: ${containerName}`);
+
+      // Extract CRIU from container to bridge VM temp location
+      const extractResult = await this.opsManager.executeOnVM(
+        bridgeIP,
+        `docker cp ${containerName}:/opt/criu/criu-linux-amd64 /tmp/criu 2>/dev/null && chmod +x /tmp/criu && echo "extracted"`
+      );
+
+      if (extractResult.code === 0 && extractResult.stdout.includes('extracted')) {
+        criuSourcePath = '/tmp/criu';
+        console.log('  ✓ Extracted CRIU from bridge container');
+      }
+    }
+
+    // Deploy CRIU to each worker VM
+    for (const ip of workerIPs) {
+      // Check if CRIU already installed on this worker
+      const criuCheck = await this.opsManager.executeOnVM(ip, 'which criu 2>/dev/null');
+      if (criuCheck.code === 0 && criuCheck.stdout.trim()) {
+        console.log(`  ✓ ${ip}: CRIU already installed`);
+        continue;
+      }
+
+      if (criuSourcePath) {
+        // Copy from bridge VM to worker VM
+        console.log(`  ${ip}: Copying CRIU from bridge...`);
+        const copyResult = await this.opsManager.executeOnVM(
+          bridgeIP,
+          `scp -o StrictHostKeyChecking=no ${criuSourcePath} ${user}@${ip}:/tmp/criu && ssh -o StrictHostKeyChecking=no ${user}@${ip} "sudo mv /tmp/criu /usr/local/bin/criu && sudo chmod +x /usr/local/bin/criu"`
+        );
+
+        if (copyResult.code === 0) {
+          console.log(`  ✓ ${ip}: CRIU installed from container`);
+          continue;
+        }
+        console.log(`  Warning: Copy failed for ${ip}, will try building from source`);
+      }
+
+      // Fall back to building from source using ops script
+      console.log(`  ${ip}: Building CRIU from source (this may take a few minutes)...`);
+
+      // Use the worker_install_criu function from ops
+      const buildResult = await execAsync(
+        `cd ${this.config.monorepoRoot}/ops && source ./scripts/init.sh && source ./scripts/workers.sh && worker_install_criu $(echo ${ip} | sed 's/.*\\.//')`,
+        { timeout: 600000, shell: '/bin/bash' } // 10 minute timeout for build
+      ).catch((e) => ({ stdout: '', stderr: e.message }));
+
+      // Verify CRIU was installed
+      const verifyResult = await this.opsManager.executeOnVM(ip, 'criu --version');
+      if (verifyResult.code === 0) {
+        console.log(`  ✓ ${ip}: CRIU built and installed`);
+      } else {
+        console.log(`  Warning: CRIU installation failed on ${ip} (non-fatal for most tests)`);
+      }
+    }
+
+    // Cleanup temp file on bridge
+    if (criuSourcePath) {
+      await this.opsManager.executeOnVM(bridgeIP, 'rm -f /tmp/criu');
+    }
+  }
 }

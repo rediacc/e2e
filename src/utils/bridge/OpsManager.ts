@@ -481,6 +481,58 @@ export class OpsManager {
   }
 
   /**
+   * Start RustFS S3-compatible storage on the bridge VM.
+   * Uses ops scripts to start the RustFS container.
+   */
+  async startRustFS(): Promise<{ success: boolean; message: string }> {
+    const bridgeIp = this.getBridgeVMIp();
+    console.log(`[OpsManager] Starting RustFS on bridge VM (${bridgeIp})...`);
+
+    // Check if RustFS is already running
+    const checkResult = await this.executeOnVM(bridgeIp, 'docker ps --filter name=rustfs --format "{{.Names}}"');
+    if (checkResult.stdout.trim() === 'rustfs') {
+      console.log('[OpsManager] RustFS is already running');
+      return { success: true, message: 'RustFS already running' };
+    }
+
+    // Start RustFS using ops script
+    const result = await this.runOpsCommand('rustfs_start', [], 120000); // 2 minute timeout
+
+    if (result.code !== 0) {
+      console.error('[OpsManager] Failed to start RustFS:', result.stderr);
+      return { success: false, message: `Failed to start RustFS: ${result.stderr}` };
+    }
+
+    // Verify RustFS is accessible by checking the S3 endpoint
+    // Note: RustFS returns 403 for unauthenticated requests, which means server is running
+    console.log('[OpsManager] Verifying RustFS S3 endpoint...');
+    const verifyResult = await this.executeOnVM(
+      bridgeIp,
+      "curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/"
+    );
+
+    const httpCode = verifyResult.stdout.trim();
+    // 403 = Access Denied (server running, auth required)
+    // 200 = OK (shouldn't happen without auth, but accept it)
+    if (httpCode === '403' || httpCode === '200') {
+      console.log('[OpsManager] RustFS S3 endpoint is accessible');
+      return { success: true, message: 'RustFS started successfully' };
+    }
+
+    console.error(`[OpsManager] RustFS health check failed (HTTP ${httpCode})`);
+    return { success: false, message: `RustFS health check failed (HTTP ${httpCode})` };
+  }
+
+  /**
+   * Check if RustFS is running on the bridge VM.
+   */
+  async isRustFSRunning(): Promise<boolean> {
+    const bridgeIp = this.getBridgeVMIp();
+    const result = await this.executeOnVM(bridgeIp, 'docker ps --filter name=rustfs --format "{{.Names}}"');
+    return result.stdout.trim() === 'rustfs';
+  }
+
+  /**
    * Soft reset VMs by force restarting them.
    * Calls: ./go up_systems --force --parallel
    * This ensures a clean state before tests.
@@ -508,6 +560,36 @@ export class OpsManager {
 
     console.log(`[OpsManager] VM reset completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
     return { success: true, duration: Date.now() - startTime };
+  }
+
+  /**
+   * Initialize datastores on all worker VMs.
+   * This ensures /mnt/rediacc is mounted with BTRFS filesystem.
+   * Should be called during global setup, not in individual tests.
+   */
+  async initializeAllDatastores(size: string = '10G', datastorePath: string = '/mnt/rediacc'): Promise<void> {
+    console.log('[OpsManager] Initializing datastores on all worker VMs...');
+
+    const workerIPs = this.getWorkerVMIps();
+
+    for (const ip of workerIPs) {
+      console.log(`  Initializing datastore on ${ip}...`);
+
+      // Run datastore_init via renet bridge once --test-mode
+      const result = await this.executeOnVM(
+        ip,
+        `renet bridge once --test-mode --function datastore_init --datastore-path ${datastorePath} --size ${size} --force`,
+        120000 // 2 minute timeout for datastore initialization
+      );
+
+      if (result.code !== 0) {
+        throw new Error(`Failed to initialize datastore on ${ip}: ${result.stderr}`);
+      }
+
+      console.log(`  ✓ Datastore initialized on ${ip}`);
+    }
+
+    console.log('[OpsManager] All datastores initialized');
   }
 
   /**

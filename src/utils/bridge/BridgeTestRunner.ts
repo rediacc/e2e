@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getOpsManager, OpsManager } from './OpsManager';
+import type { VaultBuilder } from '../vault/VaultBuilder';
 
 const execAsync = promisify(exec);
 
@@ -47,6 +48,20 @@ export interface TestFunctionOptions {
   force?: boolean;
   timeout?: number;
   uid?: string;
+  // backup_push parameters
+  destinationType?: 'machine' | 'storage';
+  to?: string;
+  machines?: string[];
+  storages?: string[];
+  dest?: string;
+  tag?: string;
+  state?: 'online' | 'offline';
+  checkpoint?: boolean;
+  override?: boolean;
+  grand?: string;
+  // backup_pull parameters
+  sourceType?: 'machine' | 'storage';
+  from?: string;
 }
 
 /**
@@ -374,6 +389,10 @@ export class BridgeTestRunner {
     if (opts.uid) {
       cmd += ` --uid ${opts.uid}`;
     }
+    // Note: backup_push/pull parameters (destinationType, tag, state, checkpoint, etc.)
+    // are passed via vault when queuing tasks, not as CLI flags in test mode.
+    // The test mode CLI only supports destMachine and sourceMachine for basic testing.
+    // Full parameter testing requires the queue API integration.
 
     // Execute via two-hop SSH: Host → Bridge → Target
     return this.executeViaBridge(cmd, opts.timeout);
@@ -1119,64 +1138,140 @@ export class BridgeTestRunner {
   // Backup/Checkpoint Functions (9)
   // ===========================================================================
 
+  /**
+   * Push repository to a destination machine.
+   * Uses backup_push with destinationType=machine.
+   */
   async push(repository: string, destMachine: string, datastorePath?: string): Promise<ExecResult> {
     return this.testFunction({
       function: 'backup_push',
       repository,
       destMachine,
       datastorePath,
+      destinationType: 'machine',
     });
   }
 
+  /**
+   * Pull repository from a source machine.
+   * Uses backup_pull with sourceType=machine.
+   */
   async pull(repository: string, sourceMachine: string, datastorePath?: string): Promise<ExecResult> {
     return this.testFunction({
       function: 'backup_pull',
       repository,
       sourceMachine,
       datastorePath,
+      sourceType: 'machine',
     });
   }
 
-  async backup(repository: string, datastorePath?: string): Promise<ExecResult> {
+  /**
+   * Push repository with all available options.
+   * Supports both machine and storage destinations.
+   */
+  async pushWithOptions(
+    repository: string,
+    options: {
+      destinationType?: 'machine' | 'storage';
+      to?: string;
+      machines?: string[];
+      storages?: string[];
+      dest?: string;
+      tag?: string;
+      state?: 'online' | 'offline';
+      checkpoint?: boolean;
+      override?: boolean;
+      grand?: string;
+      datastorePath?: string;
+      destMachine?: string;
+    }
+  ): Promise<ExecResult> {
     return this.testFunction({
-      function: 'backup_create',
+      function: 'backup_push',
+      repository,
+      ...options,
+    });
+  }
+
+  /**
+   * Pull repository with all available options.
+   * Supports both machine and storage sources.
+   */
+  async pullWithOptions(
+    repository: string,
+    options: {
+      sourceType?: 'machine' | 'storage';
+      from?: string;
+      grand?: string;
+      datastorePath?: string;
+      sourceMachine?: string;
+    }
+  ): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'backup_pull',
+      repository,
+      ...options,
+    });
+  }
+
+  /**
+   * Backup repository to storage.
+   * Uses backup_push with destinationType=storage.
+   * @deprecated Legacy wrapper - use pushWithOptions() directly
+   */
+  async backup(repository: string, datastorePath?: string, storageName?: string): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'backup_push',
       repository,
       datastorePath,
+      destinationType: 'storage',
+      to: storageName,
     });
   }
 
+  /**
+   * Deploy repository to a machine.
+   * Uses backup_push with destinationType=machine.
+   * @deprecated Legacy wrapper - use pushWithOptions() directly
+   */
   async deploy(repository: string, destMachine: string, datastorePath?: string): Promise<ExecResult> {
     return this.testFunction({
-      function: 'backup_deploy',
+      function: 'backup_push',
       repository,
       destMachine,
       datastorePath,
+      destinationType: 'machine',
     });
   }
 
   async checkpointCreate(
     repository: string,
     checkpointName: string,
-    datastorePath?: string
+    datastorePath?: string,
+    networkId?: string | number
   ): Promise<ExecResult> {
     return this.testFunction({
       function: 'checkpoint_create',
       repository,
       checkpointName,
       datastorePath,
+      networkId: networkId !== undefined ? String(networkId) : undefined,
     });
   }
 
   async checkpointRestore(
     repository: string,
     checkpointName: string,
-    datastorePath?: string
+    datastorePath?: string,
+    networkId?: string | number
   ): Promise<ExecResult> {
     return this.testFunction({
       function: 'checkpoint_restore',
       repository,
       checkpointName,
       datastorePath,
+      networkId: networkId !== undefined ? String(networkId) : undefined,
     });
   }
 
@@ -1216,6 +1311,15 @@ export class BridgeTestRunner {
     }
     if (opts.repository) {
       cmd += ` --repository ${opts.repository}`;
+    }
+    if (opts.networkId) {
+      cmd += ` --network-id ${opts.networkId}`;
+    }
+    if (opts.size) {
+      cmd += ` --size ${opts.size}`;
+    }
+    if (opts.force) {
+      cmd += ` --force`;
     }
 
     return this.executeOnVM(host, cmd, opts.timeout);
@@ -1266,7 +1370,7 @@ export class BridgeTestRunner {
 
   /**
    * Check if result has no shell syntax errors.
-   * @deprecated Use isSuccess() instead - this doesn't check if command actually succeeded
+   * @deprecated Use hasValidCommandSyntax() for syntax tests, isSuccess() for execution tests
    */
   hasNoSyntaxErrors(result: ExecResult): boolean {
     const output = this.getCombinedOutput(result);
@@ -1274,6 +1378,31 @@ export class BridgeTestRunner {
       !output.includes('syntax error') &&
       !output.includes('unexpected token') &&
       !output.includes('bash:')
+    );
+  }
+
+  /**
+   * Check if command was built with valid syntax and flags.
+   * Use this for "should not have shell syntax errors" tests.
+   *
+   * Checks for CLI/syntax errors:
+   * - Shell syntax errors (bash parsing)
+   * - Unknown CLI flags
+   * - Missing required CLI flags
+   *
+   * Does NOT fail on runtime errors like:
+   * - "repository not found" (requires actual data)
+   * - "network ID not detected" (requires environment)
+   */
+  hasValidCommandSyntax(result: ExecResult): boolean {
+    const output = this.getCombinedOutput(result);
+    return (
+      !output.includes('syntax error') &&
+      !output.includes('unexpected token') &&
+      !output.includes('bash:') &&
+      !output.includes('unknown flag') &&
+      !output.includes('required flag') &&
+      !output.includes('unknown function')
     );
   }
 
@@ -1586,7 +1715,8 @@ export class BridgeTestRunner {
 
   /**
    * Wait for PostgreSQL container to be ready to accept connections.
-   * Uses pg_isready to check database availability.
+   * Uses an actual query (SELECT 1) to verify database is fully operational,
+   * not just pg_isready which only checks if socket accepts connections.
    *
    * @param containerName PostgreSQL container name
    * @param networkId Network ID for the docker socket
@@ -1601,8 +1731,12 @@ export class BridgeTestRunner {
     intervalMs: number = 1000
   ): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
+      // Use actual query instead of pg_isready - this verifies the database
+      // is fully operational, not just that the socket accepts connections.
+      // This avoids race conditions where pg_isready passes but init scripts
+      // are still running or the database is restarting.
       const result = await this.executeViaBridge(
-        `sudo docker -H unix:///var/run/rediacc/docker-${networkId}.sock exec ${containerName} pg_isready -U postgres`
+        `sudo docker -H unix:///var/run/rediacc/docker-${networkId}.sock exec ${containerName} psql -U postgres -d testdb -c "SELECT 1" -t -q 2>/dev/null`
       );
       if (result.code === 0) {
         console.log(`[PostgreSQL] Container ${containerName} is ready after ${i + 1} attempts`);
@@ -1613,5 +1747,85 @@ export class BridgeTestRunner {
     }
     console.log(`[PostgreSQL] Container ${containerName} failed to be ready after ${maxAttempts} attempts`);
     return false;
+  }
+
+  // ===========================================================================
+  // Vault-Based Testing (for complete parameter testing)
+  // ===========================================================================
+
+  /**
+   * Test a function with a full vault configuration.
+   * Uses --vault-file flag for complete parameter testing.
+   *
+   * This enables testing ALL backup_push/pull parameters that aren't
+   * available as CLI flags in test mode. The vault simulates what
+   * middleware would construct for queue items.
+   *
+   * @param functionName Bridge function to test
+   * @param vault VaultBuilder instance with complete configuration
+   * @param timeout Optional timeout in milliseconds
+   */
+  async testFunctionWithVault(
+    functionName: string,
+    vault: VaultBuilder,
+    timeout?: number
+  ): Promise<ExecResult> {
+    // Write vault to temp file on TARGET VM (where renet runs)
+    const vaultPath = `/tmp/e2e-vault-${Date.now()}.json`;
+    const vaultJSON = vault.toJSON();
+
+    // Use base64 encoding to avoid complex escaping through nested SSH
+    // This is the safest way to pass arbitrary JSON through multiple shell layers
+    const base64JSON = Buffer.from(vaultJSON).toString('base64');
+    const uploadCmd = `echo ${base64JSON} | base64 -d > ${vaultPath}`;
+    const uploadResult = await this.executeViaBridge(uploadCmd, timeout);
+
+    if (uploadResult.code !== 0) {
+      return uploadResult;
+    }
+
+    try {
+      // Execute function with vault file on target VM
+      const cmd = `renet bridge once --test-mode --debug --function ${functionName} --vault-file ${vaultPath}`;
+      return await this.executeViaBridge(cmd, timeout);
+    } finally {
+      // Cleanup vault file on target VM
+      await this.executeViaBridge(`rm -f ${vaultPath}`);
+    }
+  }
+
+  /**
+   * Push repository with full vault configuration.
+   * Enables testing ALL backup_push parameters including:
+   * - destinationType (machine/storage)
+   * - machines array (parallel deployment)
+   * - storages array (parallel backup)
+   * - tag, state, checkpoint, override, grand
+   */
+  async pushWithVault(vault: VaultBuilder, timeout?: number): Promise<ExecResult> {
+    return this.testFunctionWithVault('backup_push', vault, timeout);
+  }
+
+  /**
+   * Pull repository with full vault configuration.
+   * Enables testing ALL backup_pull parameters including:
+   * - sourceType (machine/storage)
+   * - from (source selection)
+   * - grand (CoW pre-seeding)
+   */
+  async pullWithVault(vault: VaultBuilder, timeout?: number): Promise<ExecResult> {
+    return this.testFunctionWithVault('backup_pull', vault, timeout);
+  }
+
+  /**
+   * Execute any function with vault configuration.
+   * For testing functions beyond push/pull that need full vault context.
+   */
+  async executeWithVault(
+    functionName: string,
+    vault: VaultBuilder,
+    timeout?: number
+  ): Promise<ExecResult> {
+    return this.testFunctionWithVault(functionName, vault, timeout);
   }
 }

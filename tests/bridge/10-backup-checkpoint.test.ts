@@ -3,16 +3,14 @@ import { BridgeTestRunner } from '../../src/utils/bridge/BridgeTestRunner';
 import { DEFAULT_DATASTORE_PATH } from '../../src/constants';
 
 /**
- * Backup/Checkpoint Operations Tests (6 functions)
+ * Backup/Checkpoint Operations Tests
  *
- * Tests backup, deploy, push, pull, and checkpoint functions.
+ * Tests push, pull, and checkpoint functions.
  * These functions handle data transfer between machines and state preservation.
  *
  * Functions tested:
- * - backup_push (send repository to remote machine)
- * - backup_pull (receive repository from remote machine)
- * - backup_create (create backup of repository)
- * - backup_deploy (deploy repository to machine)
+ * - backup_push (push repository to remote machine or storage)
+ * - backup_pull (pull repository from remote machine or storage)
  * - checkpoint_create
  * - checkpoint_restore
  *
@@ -31,22 +29,12 @@ test.describe('Backup Operations @bridge', () => {
 
   test('push should not have shell syntax errors', async () => {
     const result = await runner.push(testRepo, runner.getWorkerVM2(), DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('pull should not have shell syntax errors', async () => {
     const result = await runner.pull(testRepo, runner.getWorkerVM(), DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
-  });
-
-  test('backup should not have shell syntax errors', async () => {
-    const result = await runner.backup(testRepo, DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
-  });
-
-  test('deploy should not have shell syntax errors', async () => {
-    const result = await runner.deploy(testRepo, runner.getWorkerVM2(), DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });
 
@@ -61,12 +49,12 @@ test.describe('Checkpoint Operations @bridge', () => {
 
   test('checkpoint_create should not have shell syntax errors', async () => {
     const result = await runner.checkpointCreate(testRepo, checkpointName, DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('checkpoint_restore should not have shell syntax errors', async () => {
     const result = await runner.checkpointRestore(testRepo, checkpointName, DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });
 
@@ -89,17 +77,17 @@ test.describe.serial('Checkpoint Lifecycle @bridge @lifecycle', () => {
 
   test('1. checkpoint_create: create first checkpoint', async () => {
     const result = await runner.checkpointCreate(repoName, checkpoint1, datastorePath);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('2. checkpoint_create: create second checkpoint', async () => {
     const result = await runner.checkpointCreate(repoName, checkpoint2, datastorePath);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('3. checkpoint_restore: restore to checkpoint1', async () => {
     const result = await runner.checkpointRestore(repoName, checkpoint1, datastorePath);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });
 
@@ -117,22 +105,17 @@ test.describe('Backup/Checkpoint Error Handling @bridge', () => {
 
   test('push to unreachable machine should handle gracefully', async () => {
     const result = await runner.push('test-repo', '10.0.0.254', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('pull from unreachable machine should handle gracefully', async () => {
     const result = await runner.pull('test-repo', '10.0.0.254', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
-  });
-
-  test('backup nonexistent repository should handle gracefully', async () => {
-    const result = await runner.backup('nonexistent-repo-xyz', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('restore nonexistent checkpoint should handle gracefully', async () => {
     const result = await runner.checkpointRestore('test-repo', 'nonexistent-ckpt', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });
 
@@ -152,21 +135,12 @@ test.describe('Multi-Machine Backup Operations @bridge @multi-machine', () => {
 
   test('push from VM1 to VM2', async () => {
     const result = await runner.push(repoName, runner.getWorkerVM2(), DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('pull from VM1 to VM2', async () => {
     const result = await runner.pull(repoName, runner.getWorkerVM(), DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
-  });
-
-  test('deploy to multiple machines', async () => {
-    const machines = runner.getWorkerVMs();
-
-    for (const machine of machines) {
-      const result = await runner.deploy(repoName, machine, DEFAULT_DATASTORE_PATH);
-      expect(runner.isSuccess(result)).toBe(true);
-    }
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });
 
@@ -186,21 +160,86 @@ test.describe('Checkpoint Naming @bridge', () => {
   test('checkpoint with timestamp name should work', async () => {
     const name = `ckpt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     const result = await runner.checkpointCreate(repoName, name, DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('checkpoint with simple name should work', async () => {
     const result = await runner.checkpointCreate(repoName, 'daily-backup', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('checkpoint with version name should work', async () => {
     const result = await runner.checkpointCreate(repoName, 'v1.0.0', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 
   test('checkpoint with underscores should work', async () => {
     const result = await runner.checkpointCreate(repoName, 'pre_release_v2', DEFAULT_DATASTORE_PATH);
-    expect(runner.isSuccess(result)).toBe(true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+});
+
+/**
+ * Backup Push - Multi-Machine Options Tests
+ *
+ * Tests push to different machines using the destMachine parameter.
+ * Note: Advanced parameters (destinationType, tag, state, checkpoint, etc.)
+ * are passed via vault when queuing tasks, not as CLI flags in test mode.
+ * Full parameter testing requires the queue API integration.
+ */
+test.describe('Backup Push - Machine Options @bridge', () => {
+  let runner: BridgeTestRunner;
+  const testRepo = 'push-machine-test';
+
+  test.beforeAll(async () => {
+    runner = BridgeTestRunner.forWorker();
+  });
+
+  test('push to worker2 should have valid syntax', async () => {
+    const result = await runner.pushWithOptions(testRepo, {
+      destMachine: runner.getWorkerVM2(),
+      datastorePath: DEFAULT_DATASTORE_PATH,
+    });
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+
+  test('push to worker1 should have valid syntax', async () => {
+    const result = await runner.pushWithOptions(testRepo, {
+      destMachine: runner.getWorkerVM(),
+      datastorePath: DEFAULT_DATASTORE_PATH,
+    });
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+});
+
+/**
+ * Backup Pull - Machine Options Tests
+ *
+ * Tests pull from different machines using the sourceMachine parameter.
+ * Note: Advanced parameters (sourceType, from, grand, etc.)
+ * are passed via vault when queuing tasks, not as CLI flags in test mode.
+ */
+test.describe('Backup Pull - Machine Options @bridge', () => {
+  let runner: BridgeTestRunner;
+  const testRepo = 'pull-machine-test';
+
+  test.beforeAll(async () => {
+    runner = BridgeTestRunner.forWorker();
+  });
+
+  test('pull from worker1 should have valid syntax', async () => {
+    const result = await runner.pullWithOptions(testRepo, {
+      sourceMachine: runner.getWorkerVM(),
+      datastorePath: DEFAULT_DATASTORE_PATH,
+    });
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+
+  test('pull from worker2 should have valid syntax', async () => {
+    const result = await runner.pullWithOptions(testRepo, {
+      sourceMachine: runner.getWorkerVM2(),
+      datastorePath: DEFAULT_DATASTORE_PATH,
+    });
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
   });
 });

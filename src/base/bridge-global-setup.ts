@@ -84,6 +84,28 @@ async function bridgeGlobalSetup(config: FullConfig) {
     console.log('Step 3: Verifying all VMs are ready...');
     await opsManager.verifyAllVMsReady();
 
+    // Step 4: Start RustFS S3 storage on bridge VM (mandatory for storage tests)
+    console.log('');
+    console.log('Step 4: Starting RustFS S3 storage...');
+    const rustfsResult = await opsManager.startRustFS();
+    if (rustfsResult.success) {
+      console.log(`  ✓ ${rustfsResult.message}`);
+    } else {
+      throw new Error(`RustFS failed to start: ${rustfsResult.message}`);
+    }
+
+    // Step 5: Initialize datastores on all worker VMs
+    console.log('');
+    console.log('Step 5: Initializing datastores on all worker VMs...');
+    await opsManager.initializeAllDatastores('10G', '/mnt/rediacc');
+    console.log('  ✓ All datastores initialized');
+
+    // Step 6: Deploy CRIU to all worker VMs
+    console.log('');
+    console.log('Step 6: Deploying CRIU to all worker VMs...');
+    await infra.deployCRIUToAllVMs();
+    console.log('  ✓ CRIU deployed to all worker VMs');
+
     console.log('');
     console.log('='.repeat(60));
     console.log('All VMs ready for SSH-based test execution');
