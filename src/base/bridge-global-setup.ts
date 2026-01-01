@@ -79,6 +79,20 @@ async function bridgeGlobalSetup(config: FullConfig) {
     await infra.ensureInfrastructure();
     console.log('  ✓ Renet deployed to all VMs');
 
+    // Step 2b: Run renet setup on all worker VMs to create universal user (rediacc)
+    // This is required for multi-machine operations (push/pull) that use sudo -u rediacc
+    console.log('');
+    console.log('Step 2b: Running renet setup on all worker VMs...');
+    const workerIps = opsManager.getWorkerVMIps();
+    for (const ip of workerIps) {
+      const result = await opsManager.executeOnVM(ip, 'sudo renet setup');
+      if (result.code !== 0) {
+        console.error(`  ✗ Setup failed on ${ip}: ${result.stderr}`);
+      } else {
+        console.log(`  ✓ Setup completed on ${ip}`);
+      }
+    }
+
     // Step 3: Verify all VMs are ready
     console.log('');
     console.log('Step 3: Verifying all VMs are ready...');

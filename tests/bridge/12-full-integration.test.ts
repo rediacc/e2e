@@ -173,33 +173,67 @@ test.describe.serial('Checkpoint Workflow @bridge @integration', () => {
     expect(runner.isSuccess(result)).toBe(true);
   });
 
+  // Daemon setup - required for checkpoint operations (creates Docker socket)
+  test('2a. daemon_setup: set up daemon service', async () => {
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
+    const result = await runner.daemonSetup(DEFAULT_NETWORK_ID.toString());
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('2b. daemon_start: start daemon service', async () => {
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
+    const result = await runner.daemonStart(repoName, datastorePath, DEFAULT_NETWORK_ID.toString());
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
   // Checkpoint workflow - requires CRIU
   test('3. create initial checkpoint', async () => {
-    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
     const result = await runner.checkpointCreate(repoName, checkpoint1, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('4. start services (make changes)', async () => {
-    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
     const result = await runner.repositoryUp(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('5. create checkpoint after changes', async () => {
-    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
     const result = await runner.checkpointCreate(repoName, checkpoint2, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('6. stop services', async () => {
-    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
     const result = await runner.repositoryDown(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
   test('7. restore to initial checkpoint', async () => {
-    test.skip(!criuAvailable, 'CRIU not installed - skipping checkpoint tests');
+    if (!criuAvailable) {
+      test.skip();
+      return;
+    }
     const result = await runner.checkpointRestore(repoName, checkpoint1, datastorePath, DEFAULT_NETWORK_ID);
     expect(runner.isSuccess(result)).toBe(true);
   });
