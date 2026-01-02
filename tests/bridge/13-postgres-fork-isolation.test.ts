@@ -97,12 +97,16 @@ test.describe.serial('PostgreSQL Data Persistence @bridge @integration', () => {
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  test('6. wait for PostgreSQL to be ready', async () => {
+  test('6. wait for PostgreSQL and verify seed data', async () => {
+    // Wait for PostgreSQL to be fully ready (not just accepting connections)
+    // PostgreSQL may briefly accept connections during init, then restart
+    // So we combine waiting and verification in a single test to avoid race conditions
     const ready = await runner.waitForPostgresReady(containerName, networkId);
     expect(ready).toBe(true);
-  });
 
-  test('7. verify seed data exists', async () => {
+    // Small delay to ensure init scripts have completed
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const seedExists = await runner.recordExistsByOrigin(containerName, 'seed', networkId);
     expect(seedExists).toBe(true);
 
@@ -110,38 +114,40 @@ test.describe.serial('PostgreSQL Data Persistence @bridge @integration', () => {
     expect(count).toBe(3); // alice, bob, charlie
   });
 
-  test('8. insert test record', async () => {
+  test('7. insert test record', async () => {
     await runner.insertUserRecord(containerName, 'persist_user', 'persist-test', networkId);
     const exists = await runner.recordExistsByOrigin(containerName, 'persist-test', networkId);
     expect(exists).toBe(true);
   });
 
-  test('9. down: stop PostgreSQL services', async () => {
+  test('8. down: stop PostgreSQL services', async () => {
     const result = await runner.repositoryDown(repoName, datastorePath, networkId);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  test('10. unmount repository', async () => {
+  test('9. unmount repository', async () => {
     const result = await runner.repositoryUnmount(repoName, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  test('11. mount repository again', async () => {
+  test('10. mount repository again', async () => {
     const result = await runner.repositoryMount(repoName, TEST_PASSWORD, datastorePath);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  test('12. up: start PostgreSQL again', async () => {
+  test('11. up: start PostgreSQL again', async () => {
     const result = await runner.repositoryUp(repoName, datastorePath, networkId);
     expect(runner.isSuccess(result)).toBe(true);
   });
 
-  test('13. wait for PostgreSQL to be ready after remount', async () => {
+  test('12. wait for PostgreSQL and verify data persisted', async () => {
+    // Wait for PostgreSQL to be fully ready after remount
     const ready = await runner.waitForPostgresReady(containerName, networkId);
     expect(ready).toBe(true);
-  });
 
-  test('14. verify data persisted after remount', async () => {
+    // Small delay to ensure PostgreSQL is fully operational
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     // Check seed data still exists
     const seedExists = await runner.recordExistsByOrigin(containerName, 'seed', networkId);
     expect(seedExists).toBe(true);
@@ -155,7 +161,7 @@ test.describe.serial('PostgreSQL Data Persistence @bridge @integration', () => {
     expect(count).toBe(4);
   });
 
-  test('15. cleanup', async () => {
+  test('13. cleanup', async () => {
     await runner.repositoryDown(repoName, datastorePath, networkId);
     await runner.repositoryUnmount(repoName, datastorePath);
     await runner.repositoryRm(repoName, datastorePath);
@@ -769,15 +775,20 @@ test.describe.serial('Service Restart Persistence @bridge @integration', () => {
 
     await runner.repositoryUp(repoName, datastorePath, networkId);
     await runner.waitForPostgresReady(containerName, networkId);
-  });
 
-  test('2. insert initial data', async () => {
+    // Small delay to ensure PostgreSQL is fully operational after init scripts
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Verify seed data and insert initial record in same test to avoid race condition
+    const seedCount = await runner.getUserRecordCount(containerName, networkId);
+    expect(seedCount).toBe(3); // seed data
+
     await runner.insertUserRecord(containerName, 'restart_user_1', 'restart-cycle-1', networkId);
     const count = await runner.getUserRecordCount(containerName, networkId);
     expect(count).toBe(4); // 3 seed + 1
   });
 
-  test('3. restart cycle 1: down and up (repository stays mounted)', async () => {
+  test('2. restart cycle 1: down and up (repository stays mounted)', async () => {
     await runner.repositoryDown(repoName, datastorePath, networkId);
     await runner.repositoryUp(repoName, datastorePath, networkId);
     await runner.waitForPostgresReady(containerName, networkId);
@@ -791,7 +802,7 @@ test.describe.serial('Service Restart Persistence @bridge @integration', () => {
     expect(newCount).toBe(5);
   });
 
-  test('4. restart cycle 2: verify persistence', async () => {
+  test('3. restart cycle 2: verify persistence', async () => {
     await runner.repositoryDown(repoName, datastorePath, networkId);
     await runner.repositoryUp(repoName, datastorePath, networkId);
     await runner.waitForPostgresReady(containerName, networkId);
@@ -806,7 +817,7 @@ test.describe.serial('Service Restart Persistence @bridge @integration', () => {
     expect(await runner.recordExistsByOrigin(containerName, 'restart-cycle-2', networkId)).toBe(true);
   });
 
-  test('5. restart cycle 3: final verification', async () => {
+  test('4. restart cycle 3: final verification', async () => {
     await runner.insertUserRecord(containerName, 'restart_user_3', 'restart-cycle-3', networkId);
 
     await runner.repositoryDown(repoName, datastorePath, networkId);
@@ -818,7 +829,7 @@ test.describe.serial('Service Restart Persistence @bridge @integration', () => {
     expect(count).toBe(6);
   });
 
-  test('6. cleanup', async () => {
+  test('5. cleanup', async () => {
     await runner.repositoryDown(repoName, datastorePath, networkId);
     await runner.repositoryUnmount(repoName, datastorePath);
     await runner.repositoryRm(repoName, datastorePath);
