@@ -593,6 +593,86 @@ export class OpsManager {
   }
 
   /**
+   * Provision Ceph cluster on Ceph VMs.
+   * This runs the OPS provisioning scripts to set up a full Ceph cluster.
+   * Should be called after VM reset and before running Ceph-related tests.
+   */
+  async provisionCeph(): Promise<{ success: boolean; message: string }> {
+    const cephIPs = this.getCephVMIps();
+    if (cephIPs.length === 0) {
+      return { success: true, message: 'No Ceph nodes configured, skipping' };
+    }
+
+    console.log('[OpsManager] Provisioning Ceph cluster...');
+
+    // Run provisioning via OPS command (provision_ceph_cluster)
+    // Set PROVISION_CEPH_CLUSTER=true to ensure provisioning runs
+    const result = await this.runOpsCommandWithEnv(
+      'provision_ceph_cluster',
+      [],
+      { PROVISION_CEPH_CLUSTER: 'true' },
+      600000 // 10 minute timeout
+    );
+
+    if (result.code !== 0) {
+      console.error('[OpsManager] Ceph provisioning failed');
+      return { success: false, message: `Ceph provisioning failed: ${result.stderr}` };
+    }
+
+    console.log('[OpsManager] Ceph cluster provisioned successfully');
+    return { success: true, message: 'Ceph cluster provisioned' };
+  }
+
+  /**
+   * Run an OPS command with additional environment variables
+   */
+  async runOpsCommandWithEnv(
+    command: string,
+    args: string[] = [],
+    extraEnv: Record<string, string> = {},
+    timeoutMs: number = 300000
+  ): Promise<{ stdout: string; stderr: string; code: number }> {
+    return new Promise((resolve) => {
+      const fullCommand = `./go ${command} ${args.join(' ')}`.trim();
+      console.log(`[OpsManager] Running: ${fullCommand}`);
+
+      const childProcess = spawn('./go', [command, ...args], {
+        cwd: this.opsDir,
+        shell: true,
+        env: { ...process.env, ...extraEnv },
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      childProcess.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+        console.log(`[ops] ${data.toString().trim()}`);
+      });
+
+      childProcess.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+        console.error(`[ops:err] ${data.toString().trim()}`);
+      });
+
+      const timeout = setTimeout(() => {
+        childProcess.kill('SIGTERM');
+        resolve({ stdout, stderr: stderr + '\nTimeout exceeded', code: -1 });
+      }, timeoutMs);
+
+      childProcess.on('close', (code: number | null) => {
+        clearTimeout(timeout);
+        resolve({ stdout, stderr, code: code ?? 0 });
+      });
+
+      childProcess.on('error', (err: Error) => {
+        clearTimeout(timeout);
+        resolve({ stdout, stderr: err.message, code: -1 });
+      });
+    });
+  }
+
+  /**
    * Verify all VMs (bridge + workers + ceph) are ready.
    * Throws an error if any VM is not reachable or SSH is not available.
    * STRICT: No graceful fallback, tests cannot proceed if VMs are not ready.

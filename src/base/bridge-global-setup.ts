@@ -73,6 +73,15 @@ async function bridgeGlobalSetup(config: FullConfig) {
     }
     console.log(`  ✓ VM reset completed in ${(resetResult.duration / 1000).toFixed(1)}s`);
 
+    // Step 1b: Provision Ceph cluster (if Ceph nodes are configured)
+    console.log('');
+    console.log('Step 1b: Provisioning Ceph cluster...');
+    const cephResult = await opsManager.provisionCeph();
+    if (!cephResult.success) {
+      throw new Error(`Ceph provisioning failed: ${cephResult.message}`);
+    }
+    console.log(`  ✓ ${cephResult.message}`);
+
     // Step 2: Build renet and deploy to all VMs
     console.log('');
     console.log('Step 2: Building and deploying renet...');

@@ -48,6 +48,9 @@ export interface TestFunctionOptions {
   force?: boolean;
   timeout?: number;
   uid?: string;
+  // Filesystem formatting parameters
+  filesystem?: string;
+  label?: string;
   // backup_push parameters
   destinationType?: 'machine' | 'storage';
   to?: string;
@@ -383,6 +386,12 @@ export class BridgeTestRunner {
     if (opts.format) {
       cmd += ` --format ${opts.format}`;
     }
+    if (opts.filesystem) {
+      cmd += ` --filesystem ${opts.filesystem}`;
+    }
+    if (opts.label) {
+      cmd += ` --label ${opts.label}`;
+    }
     if (opts.force) {
       cmd += ` --force`;
     }
@@ -446,6 +455,14 @@ export class BridgeTestRunner {
    */
   getCephVMs(): string[] {
     return this.opsManager.getCephVMIps();
+  }
+
+  /**
+   * Execute a command on the target Ceph VM.
+   * Alias for executeViaBridge for clarity in Ceph-specific tests.
+   */
+  async executeOnCeph(command: string, timeout?: number): Promise<ExecResult> {
+    return this.executeViaBridge(command, timeout);
   }
 
   // ===========================================================================
@@ -807,6 +824,34 @@ export class BridgeTestRunner {
     });
   }
 
+  async cephImageUnmap(pool: string, image: string): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'ceph_image_unmap',
+      pool,
+      image,
+    });
+  }
+
+  /**
+   * Format an RBD image with a filesystem.
+   * Maps the image, formats with specified filesystem, and unmaps.
+   * Used to prepare images for COW mount by adding a filesystem.
+   */
+  async cephImageFormat(
+    pool: string,
+    image: string,
+    filesystem: string = 'btrfs',
+    label?: string
+  ): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'ceph_image_format',
+      pool,
+      image,
+      filesystem,
+      label,
+    });
+  }
+
   // ===========================================================================
   // Ceph Snapshot Functions (6)
   // ===========================================================================
@@ -891,10 +936,12 @@ export class BridgeTestRunner {
     });
   }
 
-  async cephCloneList(pool: string): Promise<ExecResult> {
+  async cephCloneList(pool: string, image: string, snapshot: string): Promise<ExecResult> {
     return this.testFunction({
       function: 'ceph_clone_list',
       pool,
+      image,
+      snapshot,
     });
   }
 
@@ -913,13 +960,15 @@ export class BridgeTestRunner {
   async cephCloneMount(
     clone: string,
     mountPoint: string,
-    cowSize?: string
+    cowSize?: string,
+    pool?: string
   ): Promise<ExecResult> {
     return this.testFunction({
       function: 'ceph_clone_mount',
       clone,
       mountPoint,
       cowSize: cowSize || '10G',
+      pool,
     });
   }
 
@@ -931,11 +980,12 @@ export class BridgeTestRunner {
    * 4. rbd unmap device
    * 5. delete COW file (unless keepCow)
    */
-  async cephCloneUnmount(clone: string, keepCow?: boolean): Promise<ExecResult> {
+  async cephCloneUnmount(clone: string, keepCow?: boolean, pool?: string): Promise<ExecResult> {
     return this.testFunction({
       function: 'ceph_clone_unmount',
       clone,
       keepCow,
+      pool,
     });
   }
 
