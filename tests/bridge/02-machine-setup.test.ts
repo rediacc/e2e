@@ -6,7 +6,7 @@ import { DEFAULT_DATASTORE_PATH, DEFAULT_UID } from '../../src/constants';
  * Machine Setup Tests
  *
  * All functions registered in GoExecutor (setup domain):
- * - machine_setup, machine_fix_groups, machine_check_setup
+ * - setup, machine_fix_groups, machine_check_setup
  */
 test.describe('Machine Setup Functions @bridge @smoke', () => {
   let runner: BridgeTestRunner;
@@ -30,7 +30,7 @@ test.describe('Machine Setup Functions @bridge @smoke', () => {
   });
 
   test('setup without explicit datastore path should use default', async () => {
-    const result = await runner.testFunction({ function: 'machine_setup', uid: DEFAULT_UID });
+    const result = await runner.testFunction({ function: 'setup', uid: DEFAULT_UID });
 
     expect(runner.isSuccess(result)).toBe(true);
     expect(result.code).toBe(0);

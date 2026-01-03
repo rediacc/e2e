@@ -653,3 +653,98 @@ test.describe.serial('BTRFS on Ceph RBD @bridge @ceph @btrfs', () => {
     expect(runner.isSuccess(result)).toBe(true);
   });
 });
+
+/**
+ * Ceph Clone Unmount with Force Flag
+ *
+ * Tests the force flag for ceph_clone_unmount command.
+ * This is part of the vault parameter fixes that ensure the
+ * 'force' boolean parameter is properly passed from vault to CLI.
+ */
+test.describe.serial('Ceph Clone Unmount Force Flag @bridge @ceph', () => {
+  let runner: BridgeTestRunner;
+  const pool = 'rediacc_rbd_pool';
+  const image = `force-test-image-${Date.now()}`;
+  const snapshot = `force-test-snap-${Date.now()}`;
+  const clone = `force-test-clone-${Date.now()}`;
+  const mountPoint = '/mnt/force-test';
+
+  test.beforeAll(async () => {
+    runner = BridgeTestRunner.forCeph();
+  });
+
+  // Setup
+  test('setup: create image for force flag tests', async () => {
+    const result = await runner.cephImageCreate(pool, image, '1G');
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('setup: format image with BTRFS', async () => {
+    const result = await runner.cephImageFormat(pool, image, 'btrfs', 'force-test');
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('setup: create snapshot', async () => {
+    const result = await runner.cephSnapshotCreate(pool, image, snapshot);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('setup: protect snapshot', async () => {
+    const result = await runner.cephSnapshotProtect(pool, image, snapshot);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('setup: create clone', async () => {
+    const result = await runner.cephCloneCreate(pool, image, snapshot, clone);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  // Force flag tests
+  test('ceph_clone_unmount with force=true should not have syntax errors', async () => {
+    // Mount first
+    await runner.cephCloneMount(clone, mountPoint, '2G', pool);
+
+    // Unmount with force=true
+    const result = await runner.cephCloneUnmount(clone, false, pool, true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+
+  test('ceph_clone_unmount with keep_cow=true and force=true should work', async () => {
+    // Mount again
+    await runner.cephCloneMount(clone, mountPoint, '2G', pool);
+
+    // Unmount with keep_cow=true and force=true
+    const result = await runner.cephCloneUnmount(clone, true, pool, true);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+
+  test('ceph_clone_unmount with force=false should work', async () => {
+    // Mount again
+    await runner.cephCloneMount(clone, mountPoint, '2G', pool);
+
+    // Unmount without force
+    const result = await runner.cephCloneUnmount(clone, false, pool, false);
+    expect(runner.hasValidCommandSyntax(result)).toBe(true);
+  });
+
+  // Cleanup
+  test('cleanup: delete clone', async () => {
+    const result = await runner.cephCloneDelete(pool, clone);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('cleanup: unprotect snapshot', async () => {
+    const result = await runner.cephSnapshotUnprotect(pool, image, snapshot);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('cleanup: delete snapshot', async () => {
+    const result = await runner.cephSnapshotDelete(pool, image, snapshot);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+
+  test('cleanup: delete image', async () => {
+    const result = await runner.cephImageDelete(pool, image);
+    expect(runner.isSuccess(result)).toBe(true);
+  });
+});

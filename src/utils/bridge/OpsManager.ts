@@ -16,10 +16,10 @@ export interface VMNetworkConfig {
 }
 
 /**
- * OpsManager - Manages VMs via /home/muhammed/monorepo/ops scripts
+ * OpsManager - Manages VMs via renet ops commands
  *
  * Provides methods to:
- * - Calculate VM IPs dynamically (matches ops/scripts/init.sh pattern)
+ * - Calculate VM IPs dynamically (matches renet/pkg/infra/config pattern)
  * - Check if VMs are running
  * - Start VMs if needed
  * - Wait for VMs to be ready
@@ -27,12 +27,15 @@ export interface VMNetworkConfig {
  *
  * IP Calculation: VM_NET_BASE + "." + (VM_NET_OFFSET + VM_ID)
  * Example: 192.168.111 + "." + (0 + 11) = 192.168.111.11
+ *
+ * NOTE: This version uses 'renet ops' Go commands instead of bash scripts.
  */
 export class OpsManager {
-  private opsDir: string;
+  private renetDir: string;
   private monorepoRoot: string;
   private config: VMNetworkConfig;
   private sshOptions: string;
+  private renetBin: string;
 
   constructor() {
     const monorepoRoot = process.env.MONOREPO_ROOT;
@@ -40,10 +43,11 @@ export class OpsManager {
       throw new Error('MONOREPO_ROOT environment variable is required');
     }
     this.monorepoRoot = monorepoRoot;
-    this.opsDir = `${this.monorepoRoot}/ops`;
+    this.renetDir = `${this.monorepoRoot}/renet`;
+    this.renetBin = `${this.renetDir}/bin/renet`;
     this.sshOptions = '-q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5';
 
-    // Load configuration from environment (matches ops/scripts/init.sh)
+    // Load configuration from environment (matches renet/pkg/infra/config)
     this.config = this.loadConfig();
   }
 
@@ -223,16 +227,46 @@ export class OpsManager {
   }
 
   /**
-   * Run an ops command
+   * Map legacy ops command to renet ops command.
+   * Translates old ./go commands to new renet ops subcommands.
+   */
+  private mapOpsCommand(command: string, args: string[]): { subcommands: string[]; args: string[] } {
+    // Map legacy ops commands to renet ops commands
+    const commandMap: Record<string, string[]> = {
+      'status': ['ops', 'status'],
+      'up_systems': ['ops', 'up'],
+      'down_systems': ['ops', 'down'],
+      'rustfs_start': ['ops', 'rustfs', 'start'],
+      'rustfs_stop': ['ops', 'rustfs', 'stop'],
+      'rustfs_create_bucket': ['ops', 'rustfs', 'create-bucket'],
+      'rustfs_list': ['ops', 'rustfs', 'list'],
+      'rustfs_configure_worker': ['ops', 'rustfs', 'configure-worker'],
+      'rustfs_configure_workers': ['ops', 'rustfs', 'configure-workers'],
+      'provision_ceph_cluster': ['ops', 'ceph', 'provision'],
+    };
+
+    const mapped = commandMap[command];
+    if (mapped) {
+      return { subcommands: mapped, args };
+    }
+
+    // Fallback: assume it's already a valid subcommand chain
+    return { subcommands: ['ops', command], args };
+  }
+
+  /**
+   * Run a renet ops command
    */
   async runOpsCommand(command: string, args: string[] = [], timeoutMs: number = 300000): Promise<{ stdout: string; stderr: string; code: number }> {
     return new Promise((resolve) => {
-      const fullCommand = `./go ${command} ${args.join(' ')}`.trim();
+      const { subcommands, args: mappedArgs } = this.mapOpsCommand(command, args);
+      const allArgs = [...subcommands, ...mappedArgs];
+      const fullCommand = `${this.renetBin} ${allArgs.join(' ')}`.trim();
       console.log(`[OpsManager] Running: ${fullCommand}`);
 
-      const childProcess = spawn('./go', [command, ...args], {
-        cwd: this.opsDir,
-        shell: true,
+      const childProcess = spawn(this.renetBin, allArgs, {
+        cwd: this.renetDir,
+        shell: false,
         env: { ...process.env },
       });
 
@@ -242,12 +276,12 @@ export class OpsManager {
       childProcess.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
         // Stream output for visibility
-        console.log(`[ops] ${data.toString().trim()}`);
+        console.log(`[renet] ${data.toString().trim()}`);
       });
 
       childProcess.stderr?.on('data', (data: Buffer) => {
         stderr += data.toString();
-        console.error(`[ops:err] ${data.toString().trim()}`);
+        console.error(`[renet:err] ${data.toString().trim()}`);
       });
 
       const timeout = setTimeout(() => {
@@ -482,7 +516,7 @@ export class OpsManager {
 
   /**
    * Start RustFS S3-compatible storage on the bridge VM.
-   * Uses ops scripts to start the RustFS container.
+   * Uses renet ops rustfs start command.
    */
   async startRustFS(): Promise<{ success: boolean; message: string }> {
     const bridgeIp = this.getBridgeVMIp();
@@ -495,7 +529,7 @@ export class OpsManager {
       return { success: true, message: 'RustFS already running' };
     }
 
-    // Start RustFS using ops script
+    // Start RustFS using renet ops command
     const result = await this.runOpsCommand('rustfs_start', [], 120000); // 2 minute timeout
 
     if (result.code !== 0) {
@@ -533,20 +567,121 @@ export class OpsManager {
   }
 
   /**
+   * Stop RustFS S3-compatible storage on the bridge VM.
+   * Uses renet ops rustfs stop command.
+   */
+  async stopRustFS(): Promise<{ success: boolean; message: string }> {
+    console.log('[OpsManager] Stopping RustFS...');
+    const result = await this.runOpsCommand('rustfs_stop', [], 60000); // 1 minute timeout
+
+    if (result.code !== 0) {
+      return { success: false, message: `Failed to stop RustFS: ${result.stderr}` };
+    }
+
+    return { success: true, message: 'RustFS stopped successfully' };
+  }
+
+  /**
+   * Create a bucket in RustFS.
+   * Uses renet ops rustfs create-bucket command.
+   */
+  async createRustFSBucket(bucket?: string): Promise<{ success: boolean; message: string }> {
+    const bucketName = bucket || 'default';
+    console.log(`[OpsManager] Creating RustFS bucket: ${bucketName}`);
+
+    const args = bucket ? [bucket] : [];
+    const result = await this.runOpsCommand('rustfs_create_bucket', args, 60000);
+
+    if (result.code !== 0) {
+      return { success: false, message: `Failed to create bucket: ${result.stderr}` };
+    }
+
+    return { success: true, message: `Bucket '${bucketName}' created successfully` };
+  }
+
+  /**
+   * List contents of a RustFS bucket.
+   * Uses renet ops rustfs list command.
+   */
+  async listRustFSBucket(bucket?: string): Promise<{ success: boolean; contents: string; message: string }> {
+    const bucketName = bucket || 'default';
+    console.log(`[OpsManager] Listing RustFS bucket: ${bucketName}`);
+
+    const args = bucket ? [bucket] : [];
+    const result = await this.runOpsCommand('rustfs_list', args, 60000);
+
+    if (result.code !== 0) {
+      return { success: false, contents: '', message: `Failed to list bucket: ${result.stderr}` };
+    }
+
+    return { success: true, contents: result.stdout.trim(), message: 'Bucket listed successfully' };
+  }
+
+  /**
+   * Configure rclone on a worker VM to access RustFS.
+   * Uses renet ops rustfs configure-worker command.
+   */
+  async configureRustFSWorker(vmId: number): Promise<{ success: boolean; message: string }> {
+    console.log(`[OpsManager] Configuring RustFS access on worker VM ${vmId}...`);
+
+    const result = await this.runOpsCommand('rustfs_configure_worker', [vmId.toString()], 60000);
+
+    if (result.code !== 0) {
+      return { success: false, message: `Failed to configure worker ${vmId}: ${result.stderr}` };
+    }
+
+    return { success: true, message: `Worker ${vmId} configured for RustFS access` };
+  }
+
+  /**
+   * Configure rclone on all worker VMs to access RustFS.
+   * Uses renet ops rustfs configure-workers command.
+   */
+  async configureRustFSWorkers(): Promise<{ success: boolean; message: string }> {
+    console.log('[OpsManager] Configuring RustFS access on all worker VMs...');
+
+    const result = await this.runOpsCommand('rustfs_configure_workers', [], 120000);
+
+    if (result.code !== 0) {
+      return { success: false, message: `Failed to configure workers: ${result.stderr}` };
+    }
+
+    return { success: true, message: 'All workers configured for RustFS access' };
+  }
+
+  /**
+   * Verify RustFS access from a worker VM using rclone.
+   */
+  async verifyRustFSAccessFromWorker(vmId: number, bucket?: string): Promise<{ success: boolean; message: string }> {
+    const ip = this.calculateVMIp(vmId);
+    const bucketName = bucket || 'default';
+    console.log(`[OpsManager] Verifying RustFS access from VM ${vmId} (${ip})...`);
+
+    // Try to list the bucket using rclone
+    const result = await this.executeOnVM(ip, `rclone ls rustfs:${bucketName} 2>&1 || echo "(empty or bucket not found)"`, 30000);
+
+    if (result.code !== 0) {
+      return { success: false, message: `RustFS access verification failed: ${result.stderr}` };
+    }
+
+    return { success: true, message: `RustFS accessible from VM ${vmId}` };
+  }
+
+  /**
    * Soft reset VMs by force restarting them.
-   * Calls: ./go up_systems --force --parallel
+   * Calls: renet ops up --force --parallel
    * This ensures a clean state before tests.
    */
   async resetVMs(): Promise<{ success: boolean; duration: number }> {
     const startTime = Date.now();
 
-    console.log('[OpsManager] Performing soft reset (./go up_systems --force --parallel)...');
+    console.log('[OpsManager] Performing soft reset (renet ops up --force --parallel)...');
     const result = await this.runOpsCommand('up_systems', ['--force', '--parallel'], 300000); // 5 min timeout
 
-    // Note: The OPS command may return non-zero if middleware auth fails (rdc not found),
+    // Note: The command may return non-zero if middleware auth fails (rdc not found),
     // but VMs may still be successfully created. We verify actual VM readiness below.
     if (result.code !== 0) {
-      console.log('[OpsManager] OPS command returned non-zero, verifying VM readiness anyway...');
+      console.log('[OpsManager] renet ops command returned non-zero, verifying VM readiness anyway...');
     }
 
     // Wait for all VMs to be ready after reset - this is the real success criteria
@@ -624,7 +759,7 @@ export class OpsManager {
   }
 
   /**
-   * Run an OPS command with additional environment variables
+   * Run a renet ops command with additional environment variables
    */
   async runOpsCommandWithEnv(
     command: string,
@@ -633,12 +768,14 @@ export class OpsManager {
     timeoutMs: number = 300000
   ): Promise<{ stdout: string; stderr: string; code: number }> {
     return new Promise((resolve) => {
-      const fullCommand = `./go ${command} ${args.join(' ')}`.trim();
+      const { subcommands, args: mappedArgs } = this.mapOpsCommand(command, args);
+      const allArgs = [...subcommands, ...mappedArgs];
+      const fullCommand = `${this.renetBin} ${allArgs.join(' ')}`.trim();
       console.log(`[OpsManager] Running: ${fullCommand}`);
 
-      const childProcess = spawn('./go', [command, ...args], {
-        cwd: this.opsDir,
-        shell: true,
+      const childProcess = spawn(this.renetBin, allArgs, {
+        cwd: this.renetDir,
+        shell: false,
         env: { ...process.env, ...extraEnv },
       });
 
@@ -647,12 +784,12 @@ export class OpsManager {
 
       childProcess.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
-        console.log(`[ops] ${data.toString().trim()}`);
+        console.log(`[renet] ${data.toString().trim()}`);
       });
 
       childProcess.stderr?.on('data', (data: Buffer) => {
         stderr += data.toString();
-        console.error(`[ops:err] ${data.toString().trim()}`);
+        console.error(`[renet:err] ${data.toString().trim()}`);
       });
 
       const timeout = setTimeout(() => {

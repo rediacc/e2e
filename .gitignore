@@ -69,3 +69,5 @@ utils/data/test-data.json
 
 # Screenshots (test artifacts)
 screenshots/
+
+reports_archive/

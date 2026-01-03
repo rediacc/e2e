@@ -7,7 +7,7 @@ import { BridgeTestRunner } from '../../src/utils/bridge/BridgeTestRunner';
  * Tests for system check functions in renet bridge.
  *
  * All functions are registered in GoExecutor (setup domain):
- * - machine_ping, daemon_nop, machine_version, machine_ssh_test, machine_setup, machine_uninstall
+ * - machine_ping, daemon_nop, machine_version, machine_ssh_test, setup, machine_uninstall
  * - machine_check_kernel, machine_check_setup, machine_check_memory
  * - machine_check_sudo, machine_check_tools, machine_check_renet, machine_check_criu
  * - machine_check_btrfs, machine_check_drivers, machine_check_system, machine_check_users

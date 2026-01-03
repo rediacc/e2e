@@ -65,6 +65,15 @@ export interface TestFunctionOptions {
   // backup_pull parameters
   sourceType?: 'machine' | 'storage';
   from?: string;
+  // Setup installation parameters (new vault param fixes)
+  installSource?: 'apt-repo' | 'tar-static' | 'deb-local';
+  rcloneSource?: 'install-script' | 'package-manager' | 'manual';
+  dockerSource?: 'docker-repo' | 'package-manager' | 'snap' | 'manual';
+  installAmdDriver?: 'auto' | 'true' | 'false';
+  installNvidiaDriver?: 'auto' | 'true' | 'false';
+  installCriu?: 'auto' | 'true' | 'false' | 'manual';
+  // Repository prep-only option
+  prepOnly?: boolean;
 }
 
 /**
@@ -398,6 +407,29 @@ export class BridgeTestRunner {
     if (opts.uid) {
       cmd += ` --uid ${opts.uid}`;
     }
+    // Setup installation parameters
+    if (opts.installSource) {
+      cmd += ` --install-source ${opts.installSource}`;
+    }
+    if (opts.rcloneSource) {
+      cmd += ` --rclone-source ${opts.rcloneSource}`;
+    }
+    if (opts.dockerSource) {
+      cmd += ` --docker-source ${opts.dockerSource}`;
+    }
+    if (opts.installAmdDriver) {
+      cmd += ` --install-amd-driver ${opts.installAmdDriver}`;
+    }
+    if (opts.installNvidiaDriver) {
+      cmd += ` --install-nvidia-driver ${opts.installNvidiaDriver}`;
+    }
+    if (opts.installCriu) {
+      cmd += ` --install-criu ${opts.installCriu}`;
+    }
+    // Repository prep-only option
+    if (opts.prepOnly) {
+      cmd += ` --prep-only`;
+    }
     // Note: backup_push/pull parameters (destinationType, tag, state, checkpoint, etc.)
     // are passed via vault when queuing tasks, not as CLI flags in test mode.
     // The test mode CLI only supports destMachine and sourceMachine for basic testing.
@@ -546,18 +578,45 @@ export class BridgeTestRunner {
 
   async setup(datastorePath?: string, uid?: string): Promise<ExecResult> {
     return this.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       datastorePath,
       uid,
     });
   }
 
   async osSetup(datastorePath?: string, uid?: string): Promise<ExecResult> {
-    // os_setup is now an alias for machine_setup
+    // os_setup is now an alias for setup
     return this.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       datastorePath,
       uid,
+    });
+  }
+
+  /**
+   * Setup with all installation parameters.
+   * Tests the 6 new installation params added for vault parameter fixes.
+   */
+  async setupWithOptions(options: {
+    datastorePath?: string;
+    uid?: string;
+    from?: 'apt-repo' | 'tar-static' | 'deb-local';
+    rcloneSource?: 'install-script' | 'package-manager' | 'manual';
+    dockerSource?: 'docker-repo' | 'package-manager' | 'snap' | 'manual';
+    installAmdDriver?: 'auto' | 'true' | 'false';
+    installNvidiaDriver?: 'auto' | 'true' | 'false';
+    installCriu?: 'auto' | 'true' | 'false' | 'manual';
+  }): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'setup',
+      datastorePath: options.datastorePath,
+      uid: options.uid,
+      installSource: options.from,
+      rcloneSource: options.rcloneSource,
+      dockerSource: options.dockerSource,
+      installAmdDriver: options.installAmdDriver,
+      installNvidiaDriver: options.installNvidiaDriver,
+      installCriu: options.installCriu,
     });
   }
 
@@ -668,6 +727,20 @@ export class BridgeTestRunner {
       repository: name,
       datastorePath,
       networkId,
+    });
+  }
+
+  /**
+   * Repository up with prep-only option.
+   * Prepares the repository without starting services.
+   */
+  async repositoryUpPrepOnly(name: string, datastorePath?: string, networkId?: string): Promise<ExecResult> {
+    return this.testFunction({
+      function: 'repository_up',
+      repository: name,
+      datastorePath,
+      networkId,
+      prepOnly: true,
     });
   }
 
@@ -979,13 +1052,19 @@ export class BridgeTestRunner {
    * 3. losetup detach loop device
    * 4. rbd unmap device
    * 5. delete COW file (unless keepCow)
+   *
+   * @param clone - Clone name
+   * @param keepCow - Keep COW file after unmount
+   * @param pool - Ceph pool name
+   * @param force - Force unmount even if busy
    */
-  async cephCloneUnmount(clone: string, keepCow?: boolean, pool?: string): Promise<ExecResult> {
+  async cephCloneUnmount(clone: string, keepCow?: boolean, pool?: string, force?: boolean): Promise<ExecResult> {
     return this.testFunction({
       function: 'ceph_clone_unmount',
       clone,
       keepCow,
       pool,
+      force,
     });
   }
 

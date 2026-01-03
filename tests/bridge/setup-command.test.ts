@@ -28,7 +28,7 @@ test.describe('Setup Command @bridge', () => {
     // When setup was incorrectly using ["bash", "-c", "if..."], the
     // command would fail with: "syntax error near unexpected token `then'"
     const result = await runner.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       datastorePath: DEFAULT_DATASTORE_PATH,
     });
 
@@ -40,12 +40,12 @@ test.describe('Setup Command @bridge', () => {
     // (it may fail in test-mode due to missing vault data, but not syntax errors)
   });
 
-  test('machine_setup command should handle compound shell commands', async () => {
-    // The machine_setup command uses: if [ -f /tmp/renet-binary ]; then ... fi && sudo renet setup
+  test('setup command should handle compound shell commands', async () => {
+    // The setup command uses: if [ -f /tmp/renet-binary ]; then ... fi && sudo renet setup
     // This tests that compound commands are properly formed
 
     const result = await runner.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       datastorePath: DEFAULT_DATASTORE_PATH,
     });
 
@@ -67,9 +67,9 @@ test.describe('Setup Command Edge Cases @bridge', () => {
     runner = BridgeTestRunner.forWorker();
   });
 
-  test('machine_setup with missing datastore-path should handle gracefully', async () => {
+  test('setup with missing datastore-path should handle gracefully', async () => {
     const result = await runner.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       // Note: no datastorePath provided
     });
 
@@ -79,10 +79,10 @@ test.describe('Setup Command Edge Cases @bridge', () => {
     expect(result.stderr).not.toContain('unexpected token');
   });
 
-  test('machine_setup alias should also work without syntax errors', async () => {
-    // os_setup was an alias for machine_setup (now both use machine_setup)
+  test('setup alias should also work without syntax errors', async () => {
+    // os_setup was an alias for setup (now both use setup)
     const result = await runner.testFunction({
-      function: 'machine_setup',
+      function: 'setup',
       datastorePath: DEFAULT_DATASTORE_PATH,
     });
 
