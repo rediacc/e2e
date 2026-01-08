@@ -20,7 +20,7 @@ export default test.defineConfig({
   /* Stop test run after first test failure (including all retries) */
   maxFailures: process.env.STOP_ON_FAILURE === 'true' ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: [['html', { outputFolder: 'reports/web' }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */

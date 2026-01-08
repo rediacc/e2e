@@ -264,7 +264,7 @@ jobs:
             --password "$SYSTEM_ADMIN_PASSWORD"
 
           # Fetch team list from API
-          TEAM_LIST_OUTPUT=$(rediacc GetCompanyTeams --output json)
+          TEAM_LIST_OUTPUT=$(rediacc GetOrganizationTeams --output json)
 
           # Get vault content for the target team
           VAULT_CONTENT=$(echo "$TEAM_LIST_OUTPUT" | \
@@ -305,9 +305,9 @@ jobs:
             exit 1
           fi
 
-          # Decode and write SSH keys
-          echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
-          echo "$SSH_PUBLIC_KEY" | base64 -d > ~/.ssh/id_rsa.pub
+          # Write SSH keys (plain text PEM/public key)
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
 
           chmod 600 ~/.ssh/id_rsa
           chmod 644 ~/.ssh/id_rsa.pub

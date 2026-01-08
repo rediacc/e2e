@@ -8,7 +8,7 @@
     "test:debug": "playwright test --debug",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "test:report": "playwright show-report",
+    "test:report": "playwright show-report reports/web",
     "test:codegen": "playwright codegen",
     "test:install": "playwright install",
     "test:install-deps": "playwright install-deps",
@@ -35,9 +35,9 @@
   "dependencies": {
     "@playwright/test": "^1.56.1",
     "axios": "^1.6.8",
+    "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
-    "uuid": "^9.0.1",
-    "date-fns": "^3.6.0"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
