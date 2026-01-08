@@ -177,7 +177,7 @@ export class TestDataManager {
       ip: machineIp,
       user: machineUser,
       team,
-      datastore: '/mnt/datastore'
+      datastore: '/mnt/rediacc'
     };
   }
 

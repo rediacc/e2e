@@ -2,9 +2,9 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 
 // Vault configuration tests migrated from Python VaultConfigurationTest
-// Focus: open System page, open company vault modal, fill required fields, generate SSH key and save
+// Focus: open System page, open organization vault modal, fill required fields, generate SSH key and save
 
-// Skip: Company Settings page requires Power Mode which is a hidden developer feature
+// Skip: Organization Settings page requires Power Mode which is a hidden developer feature
 // Power Mode is enabled via Ctrl+Shift+E keyboard shortcut and requires session-only state
 // that cannot be reliably triggered in automated tests
 test.describe.skip('System Vault Configuration Tests', () => {
@@ -13,59 +13,59 @@ test.describe.skip('System Vault Configuration Tests', () => {
   test.beforeEach(async ({ adminPage }) => {
     dashboardPage = new DashboardPage(adminPage);
 
-    // Navigate to Settings > Company using UI navigation
+    // Navigate to Settings > Organization using UI navigation
     const settingsNav = adminPage.locator('[role="navigation"]').getByText('Settings');
     await settingsNav.waitFor({ state: 'visible', timeout: 10000 });
     await settingsNav.click();
     await adminPage.waitForTimeout(500);
 
-    // Click on Company submenu (requires power mode)
-    const companySubNav = adminPage.locator('[role="navigation"]').getByText('Company');
-    await companySubNav.waitFor({ state: 'visible', timeout: 10000 });
-    await companySubNav.click();
+    // Click on Organization submenu (requires power mode)
+    const organizationSubNav = adminPage.locator('[role="navigation"]').getByText('Organization');
+    await organizationSubNav.waitFor({ state: 'visible', timeout: 10000 });
+    await organizationSubNav.click();
     await adminPage.waitForLoadState('networkidle');
   });
 
-  test('should configure company vault with generated ssh key @system @vault @regression', async ({
+  test('should configure organization vault with generated ssh key @system @vault @regression', async ({
     adminPage,
     screenshotManager,
     testReporter
   }) => {
-    const stepNavigateSystem = await testReporter.startStep('Verify Company Settings page loaded');
+    const stepNavigateSystem = await testReporter.startStep('Verify Organization Settings page loaded');
 
-    // Already navigated to /console/settings/company in beforeEach
-    // Verify we're on the correct page by checking for company vault button
-    const companyVaultButton = adminPage.locator('[data-testid="system-company-vault-button"]');
+    // Already navigated to /console/settings/organization in beforeEach
+    // Verify we're on the correct page by checking for organization vault button
+    const organizationVaultButton = adminPage.locator('[data-testid="system-organization-vault-button"]');
 
     try {
-      await expect(companyVaultButton).toBeVisible({ timeout: 10000 });
-      await screenshotManager.captureStep('company_settings_page_loaded');
-      await testReporter.completeStep('Verify Company Settings page loaded', 'passed');
+      await expect(organizationVaultButton).toBeVisible({ timeout: 10000 });
+      await screenshotManager.captureStep('organization_settings_page_loaded');
+      await testReporter.completeStep('Verify Organization Settings page loaded', 'passed');
     } catch (error) {
-      await screenshotManager.captureStep('company_settings_page_not_loaded');
+      await screenshotManager.captureStep('organization_settings_page_not_loaded');
       await testReporter.completeStep(
-        'Verify Company Settings page loaded',
+        'Verify Organization Settings page loaded',
         'failed',
-        'Company Settings page did not load correctly'
+        'Organization Settings page did not load correctly'
       );
-      throw new Error('Company Settings page did not load correctly');
+      throw new Error('Organization Settings page did not load correctly');
     }
 
-    const stepOpenVault = await testReporter.startStep('Open company vault configuration');
+    const stepOpenVault = await testReporter.startStep('Open organization vault configuration');
 
     // Use precise selector - no fallbacks
-    await companyVaultButton.click();
+    await organizationVaultButton.click();
 
     const vaultModal = adminPage.locator('[data-testid="vault-modal"]');
 
     try {
       await expect(vaultModal).toBeVisible({ timeout: 5000 });
       await screenshotManager.captureStep('vault_modal_opened');
-      await testReporter.completeStep('Open company vault configuration', 'passed');
+      await testReporter.completeStep('Open organization vault configuration', 'passed');
     } catch (error) {
       await screenshotManager.captureStep('vault_modal_not_visible');
       await testReporter.completeStep(
-        'Open company vault configuration',
+        'Open organization vault configuration',
         'failed',
         'Vault configuration modal did not become visible'
       );

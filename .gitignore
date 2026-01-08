@@ -18,11 +18,12 @@ lerna-debug.log*
 # Testing and coverage
 coverage/
 .nyc_output/
+
+# Test reports and outputs (consolidated)
+reports/
 test-results/
-test-reports/
 
 # Playwright artifacts
-playwright-report/
 blob-report/
 playwright/.cache/
 playwright/.auth/
@@ -30,6 +31,7 @@ playwright/.auth/
 trace.zip
 *.trace.zip
 *.playwright.zip
+auth.json
 
 # Build output
 dist/
@@ -59,17 +61,13 @@ scripts/*.log
 .DS_Store
 Thumbs.db
 
-test-reports/
-screenshots/
-reports/
-
-# Playwright
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
+# Package lock (use npm)
 pnpm-lock.yaml
-auth.json
 
 # Generated test data
 utils/data/test-data.json
+
+# Screenshots (test artifacts)
+screenshots/
+
+reports_archive/
