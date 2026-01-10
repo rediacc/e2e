@@ -83,8 +83,9 @@ on:
       - main
 
 # Cancel in-progress runs when a new run is triggered for the same branch/PR
+# For workflow_dispatch: use run_id so each manual run is independent
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
