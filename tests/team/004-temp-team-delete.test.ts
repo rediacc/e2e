@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { TeamPageIDS } from '../../pages/team/TeamPageIDS';
 
 test.describe('Team Trace Tests', () => {
     let dashboardPage: DashboardPage;
@@ -27,18 +28,15 @@ test.describe('Team Trace Tests', () => {
         const stepTraceTeam = await testReporter.startStep('Trace team audit records');
 
 
-  await page.getByText('Organization').click();
-  await page.getByTestId('sidebar-submenu-organization-teams').click();
-  await page.getByText('test-TEAM').click();
-  await page.getByTestId('system-team-delete-button-test-TEAM').click();
-  await page.getByRole('button', { name: 'general.yes' }).click();
-  await page.getByText('Private Team').click();
-  await expect(page.getByRole('cell', { name: 'team Private Team' })).toBeVisible();
+        await page.getByTestId(TeamPageIDS.mainNavOrganizationTeams).click();
+        await page.getByText('test-TEAM').click();
+        await page.getByTestId(TeamPageIDS.systemTeamDeleteButton('test-TEAM')).click();
+        await page.getByRole('button', { name: 'general.yes' }).click();
+        await page.getByText('Private Team').click();
+        await expect(page.getByRole('cell', { name: 'team Private Team' })).toBeVisible();
 
-
-
-        await page.getByTestId('system-team-trace-button-test-TEAM').click();
-        const auditRecordsText = await page.getByTestId('audit-trace-total-records').textContent();
+        await page.getByTestId(TeamPageIDS.systemTeamTraceButton('test-TEAM')).click();
+        const auditRecordsText = await page.getByTestId(TeamPageIDS.auditTraceTotalRecords).textContent();
         const recordCount = parseInt(auditRecordsText || '0');
         expect(recordCount).toBeGreaterThan(0);
         await page.getByRole('button', { name: 'Close' }).click();

@@ -61,7 +61,7 @@ export class TestReporter {
     // Add separator line before the first step
     if (!this.hasStartedFirstStep) {
       console.log('═══════════════════════════════════════════════════════════════════');
-      console.log(`🎯 Test: ${this.testInfo.title}`);
+      console.log(`🎯 TEST : ${this.testInfo.title}`);
       console.log('═══════════════════════════════════════════════════════════════════');
       this.hasStartedFirstStep = true;
     }
@@ -74,7 +74,7 @@ export class TestReporter {
     };
 
     this.steps.push(step);
-    console.log(`${this.getRetryLabel()}🚀 Starting step: ${stepName}`);
+    console.log(`${this.getRetryLabel()}   🚀 Starting step: ${stepName}`);
 
     return step;
   }
@@ -92,7 +92,7 @@ export class TestReporter {
       }
 
       const statusEmoji = status === 'passed' ? '✅' : status === 'failed' ? '❌' : '⏭️';
-      console.log(`${this.getRetryLabel()}${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
+      console.log(`${this.getRetryLabel()}   ${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
     }
   }
 
@@ -240,7 +240,7 @@ export class TestReporter {
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
     console.log(`═══════════════════════════════════════════════════════════════════`);
-    console.log(`📊 Detailed report generated: ${reportPath}`);
+    console.log(`📊 Report: ${reportPath}`);
     console.log(`═══════════════════════════════════════════════════════════════════`);
     return reportPath;
   }

@@ -12,7 +12,7 @@ test.describe('Login Tests', () => {
     dashboardPage = new DashboardPage(page);
   });
 
-  test('should login with valid credentials @auth @smoke', async ({ 
+  test('should login with valid credentials @auth', async ({ 
     page, 
     testReporter 
   }) => {
@@ -59,9 +59,6 @@ test.describe('Login Tests', () => {
 
     const step3 = await testReporter.startStep('Verify error message');
     
-    //const errorMessage = await loginPage.getErrorMessage();
-    //expect(errorMessage).toBeTruthy();
-    //expect(errorMessage.toLowerCase()).toContain('failed');
     await loginPage.validateErrorMessage('not found');
 
     await testReporter.completeStep('Verify error message', 'passed');
@@ -82,14 +79,11 @@ test.describe('Login Tests', () => {
     await loginPage.clearForm();
     const isButtonEnabled = await loginPage.isLoginButtonEnabled();
     
-    // In most cases, login button should be disabled when fields are empty
-    // This might vary based on the actual implementation
-    
     await testReporter.completeStep('Verify empty form state', 'passed');
     await testReporter.finalizeTest();
   });
 
-   test('should navigate to registration page @auth @smoke', async ({ 
+   test('should navigate to registration page @auth', async ({ 
     page, 
     testReporter 
   }) => {

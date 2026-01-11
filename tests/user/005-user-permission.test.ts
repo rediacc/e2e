@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { UserPageIDs } from '../../pages/user/UserPageIDs';
 
 test.describe('User Permission Tests', () => {
     let dashboardPage: DashboardPage;
@@ -28,10 +29,10 @@ test.describe('User Permission Tests', () => {
         const createdUser = testDataManager.getCreatedUser();
 
         // organization
-        await page.getByTestId('sidebar-menu-organization').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
 
         // user table
-        await page.getByTestId('sidebar-submenu-organization-users').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationUsers).click();
         await expect(page.getByRole('cell', { name: `user ${createdUser.email}` })).toBeVisible();
 
         await testReporter.completeStep('Navigate to Organization Users section', 'passed');
@@ -39,13 +40,13 @@ test.describe('User Permission Tests', () => {
         const stepAssignPermission = await testReporter.startStep('Assign permissions to user');
 
         // Open permission modal
-        await page.getByTestId(`system-user-permissions-button-${createdUser.email}`).click();
+        await page.getByTestId(UserPageIDs.systemUserPermissionsButton(createdUser.email)).click();
         
         // Select permission (using "Users" as a partial match)
         await page.getByTitle(/Users/).click();
         
         // Confirm
-        await page.getByTestId('modal-assign-permissions-ok').click();
+        await page.getByTestId(UserPageIDs.modalAssignPermissionsOk).click();
 
         await testReporter.completeStep('Assign permissions to user', 'passed');
         await testReporter.finalizeTest();

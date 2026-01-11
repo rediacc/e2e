@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { UserPageIDs } from '../../pages/user/UserPageIDs';
 
 test.describe('User Team Assignment Tests', () => {
     let dashboardPage: DashboardPage;
@@ -37,15 +38,15 @@ test.describe('User Team Assignment Tests', () => {
         const stepNavigateToTeams = await testReporter.startStep('Navigate to Teams section');
 
         // Navigate to Organization > Teams
-        await page.getByText('Organization').click();
-        await page.getByText('Teams').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationTeams).click();
 
         await testReporter.completeStep('Navigate to Teams section', 'passed');
 
         const stepOpenTeamMembers = await testReporter.startStep('Open team members dialog');
 
         // Open team members dialog
-        const teamMembersButton = page.getByTestId(`system-team-members-button-${teamName}`);
+        const teamMembersButton = page.getByTestId(UserPageIDs.systemTeamMembersButton(teamName));
         await expect(teamMembersButton).toBeVisible({ timeout: 5000 });
         await teamMembersButton.click();
 
@@ -126,14 +127,14 @@ test.describe('User Team Assignment Tests', () => {
 
         const stepNavigateToTeams = await testReporter.startStep('Navigate to Teams section');
 
-        await page.getByText('Organization').click();
-        await page.getByText('Teams').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationTeams).click();
 
         await testReporter.completeStep('Navigate to Teams section', 'passed');
 
         const stepAddMember = await testReporter.startStep(`Add user ${userToAdd.email} to team`);
 
-        const teamMembersButton = page.getByTestId(`system-team-members-button-${teamName}`);
+        const teamMembersButton = page.getByTestId(UserPageIDs.systemTeamMembersButton(teamName));
         await expect(teamMembersButton).toBeVisible({ timeout: 5000 });
         await teamMembersButton.click();
 

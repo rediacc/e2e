@@ -9,7 +9,7 @@ test.describe('Registration Tests', () => {
     loginPage = new LoginPage(page);
   });
 
-  test('should register new account @auth @smoke', async ({ page, testReporter }) => {
+  test('should register new account @auth', async ({ page, testReporter }) => {
     const step1 = await testReporter.startStep('Navigate to registration page');
 
     await loginPage.navigate();

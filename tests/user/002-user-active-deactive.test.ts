@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { UserPageIDs } from '../../pages/user/UserPageIDs';
 
 test.describe('User Permission Tests', () => {
     let dashboardPage: DashboardPage;
@@ -26,14 +27,14 @@ test.describe('User Permission Tests', () => {
         const newUserEmail = tempUser.email;
 
         const stepNavigate = await testReporter.startStep('Navigate to Users section');
-        await page.getByText('Organization').click();
-        await page.getByLabel('Main navigation').getByText('Users').click();
-        const userTable = page.getByTestId('resource-list-table');
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationUsers).click();
+        const userTable = page.getByTestId(UserPageIDs.systemUserTable);
         await expect(userTable).toBeVisible({ timeout: 10000 });
         await testReporter.completeStep('Navigate to Users section', 'passed');
 
         const stepActivateUser = await testReporter.startStep('Activate user');
-        const activateButton = page.getByTestId(`system-user-activate-button-${newUserEmail}`);
+        const activateButton = page.getByTestId(UserPageIDs.systemUserActivateButton(newUserEmail));
         await expect(activateButton).toBeVisible({ timeout: 5000 });
         await activateButton.click();
 
@@ -41,7 +42,7 @@ test.describe('User Permission Tests', () => {
         await expect(confirmButton).toBeVisible();
         await confirmButton.click();
 
-        const deactivateButton = page.getByTestId(`system-user-deactivate-button-${newUserEmail}`);
+        const deactivateButton = page.getByTestId(UserPageIDs.systemUserDeactivateButton(newUserEmail));
         await expect(deactivateButton).toBeVisible({ timeout: 5000 });
 
         testDataManager.updateCreatedUserActivation(newUserEmail, true);
@@ -57,14 +58,14 @@ test.describe('User Permission Tests', () => {
         const newUserEmail = tempUser.email;
 
         const stepNavigate = await testReporter.startStep('Navigate to Users section');
-        await page.getByText('Organization').click();
-        await page.getByLabel('Main navigation').getByText('Users').click();
-        const userTable = page.getByTestId('resource-list-table');
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationUsers).click();
+        const userTable = page.getByTestId(UserPageIDs.systemUserTable);
         await expect(userTable).toBeVisible({ timeout: 10000 });
         await testReporter.completeStep('Navigate to Users section', 'passed');
 
         const stepDeactivateUser = await testReporter.startStep('Deactivate user');
-        const deactivateButton = page.getByTestId(`system-user-deactivate-button-${newUserEmail}`);
+        const deactivateButton = page.getByTestId(UserPageIDs.systemUserDeactivateButton(newUserEmail));
         await expect(deactivateButton).toBeVisible({ timeout: 5000 });
         await deactivateButton.click();
 
@@ -72,7 +73,7 @@ test.describe('User Permission Tests', () => {
         await expect(confirmDeactivateButton).toBeVisible();
         await confirmDeactivateButton.click();
 
-        const activateButton = page.getByTestId(`system-user-activate-button-${newUserEmail}`);
+        const activateButton = page.getByTestId(UserPageIDs.systemUserActivateButton(newUserEmail));
         await expect(activateButton).toBeVisible({ timeout: 5000 });
 
         testDataManager.updateCreatedUserActivation(newUserEmail, false);

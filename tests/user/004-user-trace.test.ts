@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { UserPageIDs } from '../../pages/user/UserPageIDs';
 
 test.describe('Team Trace Tests', () => {
     let dashboardPage: DashboardPage;
@@ -29,18 +30,18 @@ test.describe('Team Trace Tests', () => {
         const createdUser = testDataManager.getCreatedUser();
 
         //organization
-        await page.getByTestId('sidebar-menu-organization').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganization).click();
 
         // user table
-        await page.getByTestId('sidebar-submenu-organization-users').click();
+        await page.getByTestId(UserPageIDs.mainNavOrganizationUsers).click();
         await expect(page.getByRole('cell', { name: `user ${createdUser.email}` })).toBeVisible();
 
         await testReporter.completeStep('Navigate to Organization Users section', 'passed');
 
         const stepTraceUser = await testReporter.startStep('Trace user audit records');
 
-        await page.getByTestId(`system-user-trace-button-${createdUser.email}`).click();
-        const auditRecordsText = await page.getByTestId('audit-trace-visible-records').textContent();
+        await page.getByTestId(UserPageIDs.systemUserTraceButton(createdUser.email)).click();
+        const auditRecordsText = await page.getByTestId(UserPageIDs.auditTraceVisibleRecords).textContent();
         const recordCount = parseInt(auditRecordsText || '0');
         expect(recordCount).toBeGreaterThan(0);
         await page.getByRole('button', { name: 'Close' }).click();

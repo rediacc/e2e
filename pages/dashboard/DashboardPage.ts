@@ -2,175 +2,123 @@ import { Page, Locator } from '@playwright/test';
 import { BasePage } from '../../src/base/BasePage';
 
 export class DashboardPage extends BasePage {
-  private readonly header: Locator;
-  private readonly userMenu: Locator;
-  private readonly headerLogo: Locator;
-  private readonly dashboardCards: Locator;
-  private readonly machineStatusWidget: Locator;
-  private readonly queueStatusWidget: Locator;
-  private readonly storageWidget: Locator;
-  private readonly activityLogWidget: Locator;
+  // Navigation
+  private readonly navOrganization: Locator;
+  private readonly navMachines: Locator;
+  private readonly navSettings: Locator;
+  
+  // Header / Top Bar
   private readonly notificationBell: Locator;
+  private readonly userMenu: Locator;
   private readonly teamSelector: Locator;
-  private readonly searchInput: Locator;
+  
+  // Main Content
+  private readonly mainContent: Locator;
+  
+  // Machines / Resources Views
+  private readonly machinesCreateButton: Locator;
+  private readonly machinesTestRefreshButton: Locator;
+  private readonly splitResourceViewContainer: Locator;
+  private readonly splitResourceViewLeftPanel: Locator;
+  private readonly resourceListContainer: Locator;
+  private readonly resourceListEmpty: Locator;
+  
+  // Global
+  private readonly toasterContainer: Locator;
 
   constructor(page: Page) {
     super(page, '/console/machines');
 
-    // All selectors use data-testid for stability
-    this.header = page.locator('[data-testid="main-header"]'); // Main header (fallback to header tag)
-    this.userMenu = page.locator('[data-testid="user-menu-button"]'); // User menu button
-    this.headerLogo = page.locator('[data-testid="main-logo-home"]'); // Logo
-    this.dashboardCards = page.locator('[data-testid="dashboard-card"]'); // Dashboard cards
-    this.machineStatusWidget = page.locator('[data-testid="main-nav-machines"]'); // Machines nav item
-    this.queueStatusWidget = page.locator('[data-testid="main-nav-queue"]'); // Queue nav item
-    this.storageWidget = page.locator('[data-testid="main-content"]'); // Main content area
-    this.activityLogWidget = page.locator('[data-testid="main-sidebar"]'); // Navigation sidebar
-    this.notificationBell = page.locator('[data-testid="notification-bell"]'); // Notification bell
-    this.teamSelector = page.locator('[data-testid="machines-team-selector"]'); // Team selector
-    this.searchInput = page.locator('[data-testid="machines-search-input"]'); // Search input
+    // Navigation
+    this.navOrganization = page.locator('[data-testid="main-nav-organization"]');
+    this.navMachines = page.locator('[data-testid="main-nav-machines"]');
+    this.navSettings = page.locator('[data-testid="main-nav-settings"]');
+
+    // Header / Top Bar
+    this.notificationBell = page.locator('[data-testid="notification-bell"]');
+    this.userMenu = page.locator('[data-testid="user-menu-button"]');
+    this.teamSelector = page.locator('[data-testid="team-selector"]');
+
+    // Main Content
+    this.mainContent = page.locator('[data-testid="main-content"]');
+
+    // Machines / Resources
+    this.machinesCreateButton = page.locator('[data-testid="machines-create-machine-button"]');
+    this.machinesTestRefreshButton = page.locator('[data-testid="machines-test-and-refresh-button"]');
+    this.splitResourceViewContainer = page.locator('[data-testid="split-resource-view-container"]');
+    this.splitResourceViewLeftPanel = page.locator('[data-testid="split-resource-view-left-panel"]');
+    this.resourceListContainer = page.locator('[data-testid="resource-list-container"]');
+    this.resourceListEmpty = page.locator('[data-testid="resource-list-empty"]');
+
+    // Global
+    this.toasterContainer = page.locator('[data-testid="themed-toaster-container"]');
   }
 
   getPageLocators(): Record<string, Locator> {
     return {
-      header: this.header,
-      userMenu: this.userMenu,
-      headerLogo: this.headerLogo,
-      dashboardCards: this.dashboardCards,
-      machineStatusWidget: this.machineStatusWidget,
-      queueStatusWidget: this.queueStatusWidget,
-      storageWidget: this.storageWidget,
-      activityLogWidget: this.activityLogWidget,
+      navOrganization: this.navOrganization,
+      navMachines: this.navMachines,
+      navSettings: this.navSettings,
       notificationBell: this.notificationBell,
+      userMenu: this.userMenu,
       teamSelector: this.teamSelector,
-      searchInput: this.searchInput
+      mainContent: this.mainContent,
+      machinesCreateButton: this.machinesCreateButton,
+      machinesTestRefreshButton: this.machinesTestRefreshButton,
+      splitResourceViewContainer: this.splitResourceViewContainer,
+      splitResourceViewLeftPanel: this.splitResourceViewLeftPanel,
+      resourceListContainer: this.resourceListContainer,
+      resourceListEmpty: this.resourceListEmpty,
+      toasterContainer: this.toasterContainer
     };
   }
 
   async verifyDashboardLoaded(): Promise<void> {
-    // Verify main layout elements are visible
-    await this.verifyElementVisible(this.header);
-    //await this.verifyElementVisible(this.activityLogWidget); // Navigation sidebar
-    await this.verifyElementVisible(this.storageWidget); // Main content area
-  }
-
-  async getDashboardCardCount(): Promise<number> {
-    return await this.getElementCount(this.dashboardCards);
+    await this.verifyElementVisible(this.mainContent);
+    await this.verifyElementVisible(this.navMachines);
   }
 
   async clickUserMenu(): Promise<void> {
     await this.clickWithRetry(this.userMenu);
   }
 
-  async navigateToSection(sectionName: string): Promise<void> {
-    const sectionLink = this.page.locator(`[data-testid="main-nav-${sectionName.toLowerCase()}"]`);
-    await this.clickWithRetry(sectionLink);
-    await this.waitForNetworkIdle();
+  async clickNotificationBell(): Promise<void> {
+    await this.clickWithRetry(this.notificationBell);
+  }
+  
+  async openDeviceSettings(): Promise<void> {
+    await this.clickWithRetry(this.navSettings);
+  }
+
+  async openOrganization(): Promise<void> {
+    await this.clickWithRetry(this.navOrganization);
+  }
+
+  async navigateToMachines(): Promise<void> {
+    await this.clickWithRetry(this.navMachines);
+  }
+
+  // Helper for dynamic team tags
+  getTeamTag(teamName: string): Locator {
+    // Note: The ID in the list was 'team-selector-tag-Private Team', so we assume dynamic part
+    return this.page.locator(`[data-testid="team-selector-tag-${teamName}"]`);
   }
 
   async selectTeam(teamName: string): Promise<void> {
     await this.clickWithRetry(this.teamSelector);
-    const teamOption = this.page.locator(`[data-testid="team-option-${teamName}"]`);
-    await this.clickWithRetry(teamOption);
-    await this.waitForNetworkIdle();
+    // Logic for selecting team from dropdown would go here, 
+    // assuming the tags might also be used in the selector or similar.
+  }
+  
+  async clickCreateMachine(): Promise<void> {
+    await this.clickWithRetry(this.machinesCreateButton);
   }
 
-  async searchDashboard(query: string): Promise<void> {
-    await this.fillWithClear(this.searchInput, query);
-    await this.page.keyboard.press('Enter');
-    await this.waitForNetworkIdle();
+  async clickTestAndRefresh(): Promise<void> {
+    await this.clickWithRetry(this.machinesTestRefreshButton);
   }
 
-  async getMachineStatus(): Promise<Record<string, number>> {
-    await this.waitForElement(this.machineStatusWidget);
-
-    // Resource usage card shows Machine and Repo usage percentages
-    const machineProgress = this.machineStatusWidget.locator('[data-testid="dashboard-progress-machine"]');
-    const repoProgress = this.machineStatusWidget.locator('[data-testid="dashboard-progress-repo"]');
-
-    // Return resource counts (the card shows "X / Y" format in TileMeta)
-    return {
-      machineUsage: await machineProgress.count() > 0 ? 1 : 0,
-      repoUsage: await repoProgress.count() > 0 ? 1 : 0,
-      total: 2
-    };
-  }
-
-  async getQueueStatus(): Promise<Record<string, number>> {
-    await this.waitForElement(this.queueStatusWidget);
-
-    const pendingCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-pending"]').textContent();
-    const runningCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-processing"]').textContent();
-    const completedCount = await this.queueStatusWidget.locator('[data-testid="dashboard-stat-completed"]').textContent();
-
-    return {
-      pending: parseInt(pendingCount || '0', 10),
-      running: parseInt(runningCount || '0', 10),
-      completed: parseInt(completedCount || '0', 10)
-    };
-  }
-
-  async getStorageInfo(): Promise<Record<string, string>> {
-    await this.waitForElement(this.storageWidget);
-
-    // Subscription card shows license and plan info
-    const activeLicenses = await this.storageWidget.locator('[data-testid="dashboard-stat-active-licenses"]').textContent();
-    const daysRemaining = await this.storageWidget.locator('[data-testid="dashboard-stat-days-remaining"]').textContent();
-
-    return {
-      activeLicenses: activeLicenses || '',
-      daysRemaining: daysRemaining || '',
-      percentage: ''
-    };
-  }
-
-  async getRecentActivities(): Promise<string[]> {
-    await this.waitForElement(this.activityLogWidget);
-    
-    const activities = this.activityLogWidget.locator('.activity-item');
-    return await this.getAllTextContents(activities);
-  }
-
-  async checkNotifications(): Promise<number> {
-    const notificationCount = await this.notificationBell.locator('.notification-count').textContent();
-    return parseInt(notificationCount || '0', 10);
-  }
-
-  async clickNotificationBell(): Promise<void> {
-    await this.clickWithRetry(this.notificationBell);
-  }
-
-  async waitForDashboardDataLoad(): Promise<void> {
-    await Promise.all([
-      this.waitForElement(this.machineStatusWidget),
-      this.waitForElement(this.queueStatusWidget),
-      this.waitForElement(this.storageWidget),
-      this.waitForElement(this.activityLogWidget)
-    ]);
-  }
-
-  async refreshDashboard(): Promise<void> {
-    const refreshButton = this.page.locator('[data-testid="machines-refresh-button"]');
-    await this.clickWithRetry(refreshButton);
-    await this.waitForNetworkIdle();
-    await this.waitForDashboardDataLoad();
-  }
-
-  async logout(): Promise<void> {
-    await this.clickUserMenu();
-    const logoutButton = this.page.locator('[data-testid="main-logout-button"]');
-    await this.clickWithRetry(logoutButton);
-    await this.page.waitForURL('**/login');
-  }
-
-  async verifyUserLoggedIn(expectedUser?: string): Promise<void> {
-    await this.verifyElementVisible(this.userMenu);
-    
-    if (expectedUser) {
-      await this.clickUserMenu();
-      const userInfo = this.page.locator('[data-testid="user-info"]');
-      await this.verifyElementText(userInfo, expectedUser);
-      await this.closeDialog();
-    }
+  async verifyToastVisible(): Promise<void> {
+    await this.verifyElementVisible(this.toasterContainer);
   }
 }

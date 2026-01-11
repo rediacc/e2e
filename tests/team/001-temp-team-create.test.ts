@@ -2,6 +2,7 @@ import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 import { LoginPage } from '../../pages/auth/LoginPage';
 import { TestDataManager } from '../../src/utils/data/TestDataManager';
+import { TeamPageIDS } from '../../pages/team/TeamPageIDS';
 
 test.describe('Team Creation Tests', () => {
     let dashboardPage: DashboardPage;
@@ -20,20 +21,19 @@ test.describe('Team Creation Tests', () => {
 
     test('should create new team with permissions @system @organization @teams @regression', async ({
         page,
-        screenshotManager,
         testReporter
     }) => {
         const stepNavigate = await testReporter.startStep('Navigate to Organization Users section');
-
-        await page.getByTestId('sidebar-submenu-organization-teams').click();
-        await page.getByTestId('system-create-team-button').click();
-        await page.getByTestId('resource-modal-field-teamName-input').click();
-
-        await page.getByTestId('resource-modal-field-teamName-input').fill('test-TEAM');
-        await page.getByTestId('vault-editor-generate-SSH_PRIVATE_KEY').click();
-        await page.getByTestId('vault-editor-generate-button').click();
-        await page.getByTestId('vault-editor-apply-generated').click();
-        await page.getByTestId('resource-modal-ok-button').click();
+        
+        await page.getByTestId(TeamPageIDS.mainNavOrganization).click();
+        await page.getByTestId(TeamPageIDS.mainNavOrganizationTeams).click();
+        await page.getByTestId(TeamPageIDS.systemCreateTeamButton).click();
+        await page.getByTestId(TeamPageIDS.resourceModalFieldTeamNameInput).click();
+        await page.getByTestId(TeamPageIDS.resourceModalFieldTeamNameInput).fill('test-TEAM');
+        await page.getByTestId(TeamPageIDS.vaultEditorGenerateSshPrivateKey).click();
+        await page.getByTestId(TeamPageIDS.vaultEditorGenerateButton).click();
+        await page.getByTestId(TeamPageIDS.vaultEditorApplyGenerated).click();
+        await page.getByTestId(TeamPageIDS.resourceModalOkButton).click();
 
         await testReporter.completeStep('Create new team', 'passed');
 
