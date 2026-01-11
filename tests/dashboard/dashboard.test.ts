@@ -1,29 +1,34 @@
 import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
+import { LoginPage } from '../../pages/auth/LoginPage';
 
 test.describe('Dashboard Tests', () => {
   let dashboardPage: DashboardPage;
+  let loginPage: LoginPage;
 
-  test.beforeEach(async ({ authenticatedPage }) => {
-    dashboardPage = new DashboardPage(authenticatedPage);
-    // Don't navigate here, let individual tests handle navigation
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    dashboardPage = new DashboardPage(page);
+    
+    await loginPage.navigate();
+    await loginPage.performQuickLogin();
   });
 
   test('should display dashboard components @dashboard @smoke', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Check authentication state');
     
-    const currentUrl = await authenticatedPage.url();
+    const currentUrl = await page.url();
     await screenshotManager.captureStep('01_initial_state');
     
     // If we're on login page, we need to login first
     if (currentUrl.includes('/login')) {
       
       // Just verify we can see login elements
-      const loginTitle = await authenticatedPage.title();
+      const loginTitle = await page.title();
       expect(loginTitle).toBe('Rediacc Console');
       
       await screenshotManager.captureStep('02_login_page_verified');
@@ -34,25 +39,25 @@ test.describe('Dashboard Tests', () => {
     } else {
       
       // Wait for page to fully load with longer timeout for JS rendering
-      await authenticatedPage.waitForLoadState('networkidle', { timeout: 15000 });
-      await authenticatedPage.waitForTimeout(5000);
+      await page.waitForLoadState('networkidle', { timeout: 15000 });
+      await page.waitForTimeout(5000);
       
       // Look for specific elements that should be present
       try {
         // Try to find navigation elements
-        const hasNav = await authenticatedPage.locator('nav').count() > 0;
+        const hasNav = await page.locator('nav').count() > 0;
         
         // Try to find any button
-        const buttonCount = await authenticatedPage.locator('button').count();
+        const buttonCount = await page.locator('button').count();
         
         // Try to find any text content
-        const allText = await authenticatedPage.locator('*').allTextContents();
+        const allText = await page.locator('*').allTextContents();
         const nonEmptyText = allText.filter(text => text.trim().length > 0);
         
         await screenshotManager.captureStep('02_after_js_render');
         
         // Just verify URL for now since app might be loading slowly
-        const currentUrl = await authenticatedPage.url();
+        const currentUrl = await page.url();
         expect(currentUrl).toContain('/machines');
         
       } catch (error) {
@@ -62,11 +67,11 @@ test.describe('Dashboard Tests', () => {
       await testReporter.completeStep('Check authentication state', 'passed');
     }
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
 /*   test('should display machine status correctly @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -82,11 +87,11 @@ test.describe('Dashboard Tests', () => {
     await screenshotManager.captureStep('01_machine_status_loaded');
     await testReporter.completeStep('Get machine status', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should display queue status correctly @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -101,11 +106,11 @@ test.describe('Dashboard Tests', () => {
     await screenshotManager.captureStep('01_queue_status_loaded');
     await testReporter.completeStep('Get queue status', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should handle team selection @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -123,11 +128,11 @@ test.describe('Dashboard Tests', () => {
       await testReporter.completeStep('Select different team', 'skipped', 'Team selector not available');
     }
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should navigate to different sections @dashboard @smoke', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -138,7 +143,7 @@ test.describe('Dashboard Tests', () => {
       
       try {
         await dashboardPage.navigateToSection(section);
-        await authenticatedPage.waitForTimeout(2000);
+        await page.waitForTimeout(2000);
         
         const currentUrl = await dashboardPage.getCurrentUrl();
         expect(currentUrl).toContain(section);
@@ -153,11 +158,11 @@ test.describe('Dashboard Tests', () => {
       }
     }
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should refresh dashboard data @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -184,11 +189,11 @@ test.describe('Dashboard Tests', () => {
       await testReporter.completeStep('Refresh dashboard', 'skipped', 'Refresh button not available');
     }
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should handle user menu interactions @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -206,11 +211,11 @@ test.describe('Dashboard Tests', () => {
     
     await testReporter.completeStep('Close user menu', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should display storage information @dashboard', async ({ 
-    authenticatedPage, 
+    page, 
     screenshotManager, 
     testReporter 
   }) => {
@@ -225,6 +230,6 @@ test.describe('Dashboard Tests', () => {
     await screenshotManager.captureStep('01_storage_info_displayed');
     await testReporter.completeStep('Get storage information', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   }); */
 });

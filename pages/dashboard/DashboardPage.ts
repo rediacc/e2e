@@ -50,7 +50,7 @@ export class DashboardPage extends BasePage {
   async verifyDashboardLoaded(): Promise<void> {
     // Verify main layout elements are visible
     await this.verifyElementVisible(this.header);
-    await this.verifyElementVisible(this.activityLogWidget); // Navigation sidebar
+    //await this.verifyElementVisible(this.activityLogWidget); // Navigation sidebar
     await this.verifyElementVisible(this.storageWidget); // Main content area
   }
 

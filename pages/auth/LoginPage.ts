@@ -10,6 +10,14 @@ export class LoginPage extends BasePage {
   private readonly registerLink: Locator;
   private readonly errorMessage: Locator;
   private readonly loadingSpinner: Locator;
+  private readonly registrationOrganizationInput: Locator;
+  private readonly registrationEmailInput: Locator;
+  private readonly registrationPasswordInput: Locator;
+  private readonly registrationPasswordConfirmInput: Locator;
+  private readonly registrationTermsCheckbox: Locator;
+  private readonly registrationSubmitButton: Locator;
+  private readonly registrationActivationCodeInput: Locator;
+  private readonly registrationVerifyButton: Locator;
 
   constructor(page: Page) {
     super(page, '/console/login');
@@ -21,6 +29,14 @@ export class LoginPage extends BasePage {
     this.registerLink = page.locator('[data-testid="login-register-link"]');
     this.errorMessage = page.locator('[data-testid="login-error-alert"]');
     this.loadingSpinner = page.locator('.ant-spin');
+    this.registrationOrganizationInput = page.locator('[data-testid="registration-organization-input"]');
+    this.registrationEmailInput = page.locator('[data-testid="registration-email-input"]');
+    this.registrationPasswordInput = page.locator('[data-testid="registration-password-input"]');
+    this.registrationPasswordConfirmInput = page.locator('[data-testid="registration-password-confirm-input"]');
+    this.registrationTermsCheckbox = page.locator('#termsAccepted');
+    this.registrationSubmitButton = page.locator('[data-testid="registration-submit-button"]');
+    this.registrationActivationCodeInput = page.locator('[data-testid="registration-activation-code-input"]');
+    this.registrationVerifyButton = page.locator('[data-testid="registration-verify-button"]');
   }
 
   getPageLocators(): Record<string, Locator> {
@@ -31,7 +47,15 @@ export class LoginPage extends BasePage {
       forgotPasswordLink: this.forgotPasswordLink,
       registerLink: this.registerLink,
       errorMessage: this.errorMessage,
-      loadingSpinner: this.loadingSpinner
+      loadingSpinner: this.loadingSpinner,
+      registrationOrganizationInput: this.registrationOrganizationInput,
+      registrationEmailInput: this.registrationEmailInput,
+      registrationPasswordInput: this.registrationPasswordInput,
+      registrationPasswordConfirmInput: this.registrationPasswordConfirmInput,
+      registrationTermsCheckbox: this.registrationTermsCheckbox,
+      registrationSubmitButton: this.registrationSubmitButton,
+      registrationActivationCodeInput: this.registrationActivationCodeInput,
+      registrationVerifyButton: this.registrationVerifyButton
     };
   }
 
@@ -111,7 +135,50 @@ export class LoginPage extends BasePage {
     const email = requireEnvVar('TEST_USER_EMAIL');
     const password = requireEnvVar('TEST_USER_PASSWORD');
     
+    console.log('   🔐 Performing authentication...');
     await this.login(email, password);
     await this.waitForLoginCompletion();
+    console.log('   ✅ Authentication successful');
+  }
+
+  async fillRegistrationForm(
+    organizationName: string,
+    email: string,
+    password: string,
+    passwordConfirm: string,
+    acceptTerms: boolean = true
+  ): Promise<void> {
+    await this.registrationOrganizationInput.fill(organizationName);
+    await this.registrationEmailInput.fill(email);
+    await this.registrationPasswordInput.fill(password);
+    await this.registrationPasswordConfirmInput.fill(passwordConfirm);
+
+    if (acceptTerms) {
+      if (!(await this.registrationTermsCheckbox.isChecked())) {
+        await this.registrationTermsCheckbox.check();
+      }
+    }
+  }
+
+  async submitRegistrationForm(): Promise<void> {
+    await this.registrationSubmitButton.click();
+    await this.waitForNetworkIdle();
+  }
+
+  async completeRegistration(
+    organizationName: string,
+    email: string,
+    password: string,
+    passwordConfirm: string,
+    acceptTerms: boolean = true
+  ): Promise<void> {
+    await this.fillRegistrationForm(organizationName, email, password, passwordConfirm, acceptTerms);
+    await this.submitRegistrationForm();
+  }
+
+  async completeRegistrationVerification(code: string = '11111'): Promise<void> {
+    await this.registrationActivationCodeInput.fill(code);
+    await this.registrationVerifyButton.click();
+    await this.waitForNetworkIdle();
   }
 }
