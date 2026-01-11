@@ -12,19 +12,16 @@ test.describe('Login Tests', () => {
     dashboardPage = new DashboardPage(page);
   });
 
-  test('should login with valid credentials @auth @smoke', async ({ 
+  test('should login with valid credentials @auth', async ({ 
     page, 
-    screenshotManager, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Navigate to login page');
-    await screenshotManager.captureStep('01_login_page_loaded');
     
     await loginPage.navigate();
     await loginPage.verifyFormValidation();
     
     await testReporter.completeStep('Navigate to login page', 'passed');
-    await screenshotManager.captureStep('02_login_form_visible');
 
     const step2 = await testReporter.startStep('Enter valid credentials');
     
@@ -33,7 +30,6 @@ test.describe('Login Tests', () => {
     
     await loginPage.login(email, password);
     await testReporter.completeStep('Enter valid credentials', 'passed');
-    await screenshotManager.captureStep('03_credentials_entered');
 
     const step3 = await testReporter.startStep('Verify successful login');
     
@@ -43,49 +39,39 @@ test.describe('Login Tests', () => {
     await expect(page.url()).toContain('/machines');
     
     await testReporter.completeStep('Verify successful login', 'passed');
-    await screenshotManager.captureStep('04_dashboard_loaded');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should show error with invalid credentials @auth', async ({ 
     page, 
-    screenshotManager, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Navigate to login page');
     await loginPage.navigate();
-    await screenshotManager.captureStep('01_login_page_loaded');
     await testReporter.completeStep('Navigate to login page', 'passed');
 
     const step2 = await testReporter.startStep('Enter invalid credentials');
     
     await loginPage.login('invalid@example.com', 'wrongpassword');
-    await screenshotManager.captureStep('02_invalid_credentials_entered');
     
     await testReporter.completeStep('Enter invalid credentials', 'passed');
 
     const step3 = await testReporter.startStep('Verify error message');
     
-    //const errorMessage = await loginPage.getErrorMessage();
-    //expect(errorMessage).toBeTruthy();
-    //expect(errorMessage.toLowerCase()).toContain('failed');
     await loginPage.validateErrorMessage('not found');
 
-    await screenshotManager.captureStep('03_error_message_displayed');
     await testReporter.completeStep('Verify error message', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
   test('should disable login button with empty fields @auth', async ({ 
     page, 
-    screenshotManager, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Navigate to login page');
     await loginPage.navigate();
-    await screenshotManager.captureStep('01_login_page_loaded');
     await testReporter.completeStep('Navigate to login page', 'passed');
 
     const step2 = await testReporter.startStep('Verify empty form state');
@@ -93,22 +79,16 @@ test.describe('Login Tests', () => {
     await loginPage.clearForm();
     const isButtonEnabled = await loginPage.isLoginButtonEnabled();
     
-    // In most cases, login button should be disabled when fields are empty
-    // This might vary based on the actual implementation
-    await screenshotManager.captureStep('02_empty_form_state');
-    
     await testReporter.completeStep('Verify empty form state', 'passed');
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 
-  test('should navigate to registration page @auth @smoke', async ({ 
+   test('should navigate to registration page @auth', async ({ 
     page, 
-    screenshotManager, 
     testReporter 
   }) => {
     const step1 = await testReporter.startStep('Navigate to login page');
     await loginPage.navigate();
-    await screenshotManager.captureStep('01_login_page_loaded');
     await testReporter.completeStep('Navigate to login page', 'passed');
 
     const step2 = await testReporter.startStep('Click register link');
@@ -118,9 +98,8 @@ test.describe('Login Tests', () => {
     // Wait for navigation to register page
     await page.waitForTimeout(2000);
     
-    await screenshotManager.captureStep('02_register_page_loaded');
     await testReporter.completeStep('Click register link', 'passed');
     
-    await testReporter.generateDetailedReport();
+    await testReporter.finalizeTest();
   });
 });

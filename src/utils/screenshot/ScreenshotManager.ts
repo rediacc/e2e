@@ -70,7 +70,7 @@ export class ScreenshotManager {
         ...defaultOptions
       });
 
-      console.log(`📸 Screenshot captured: ${fileName}`);
+      // Removed console.log for cleaner output - screenshot info is captured in step reporting
       return filePath;
     } catch (error) {
       console.error(`❌ Failed to capture screenshot: ${error}`);
@@ -97,7 +97,7 @@ export class ScreenshotManager {
         timeout: options.timeout || 30000
       });
 
-      console.log(`📸 Element screenshot captured: ${fileName}`);
+      // Removed console.log for cleaner output
       return filePath;
     } catch (error) {
       console.error(`❌ Failed to capture element screenshot: ${error}`);
@@ -155,7 +155,7 @@ export class ScreenshotManager {
       const errorLogPath = path.join(this.testCaseDir, `${timestamp}_error.log`);
       fs.writeFileSync(errorLogPath, `Error: ${errorMessage}\nURL: ${this.page.url()}\nTimestamp: ${new Date().toISOString()}`);
 
-      console.log(`❌ Error screenshot captured: ${fileName}`);
+      // Keep error screenshot log as it's important for debugging
       return filePath;
     } catch (screenshotError) {
       console.error(`❌ Failed to capture error screenshot: ${screenshotError}`);

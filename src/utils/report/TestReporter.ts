@@ -58,6 +58,14 @@ export class TestReporter {
   }
 
   async startStep(stepName: string, details?: Record<string, any>): Promise<TestStep> {
+    // Add separator line before the first step
+    if (!this.hasStartedFirstStep) {
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`🎯 TEST : ${this.testInfo.title}`);
+      console.log('═══════════════════════════════════════════════════════════════════');
+      this.hasStartedFirstStep = true;
+    }
+
     const step: TestStep = {
       name: stepName,
       status: 'passed',
@@ -66,7 +74,7 @@ export class TestReporter {
     };
 
     this.steps.push(step);
-    console.log(`${this.getRetryLabel()}🚀 Starting step: ${stepName}`);
+    console.log(`${this.getRetryLabel()}   🚀 Starting step: ${stepName}`);
 
     return step;
   }
@@ -84,7 +92,7 @@ export class TestReporter {
       }
 
       const statusEmoji = status === 'passed' ? '✅' : status === 'failed' ? '❌' : '⏭️';
-      console.log(`${this.getRetryLabel()}${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
+      console.log(`${this.getRetryLabel()}   ${statusEmoji} Completed step: ${stepName} (${step.duration}ms)`);
     }
   }
 
@@ -231,7 +239,9 @@ export class TestReporter {
     const reportPath = path.join(this.reportDir, `detailed-${this.getTestFileName()}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
-    console.log(`📊 Detailed report generated: ${reportPath}`);
+    console.log(`═══════════════════════════════════════════════════════════════════`);
+    console.log(`📊 Report: ${reportPath}`);
+    console.log(`═══════════════════════════════════════════════════════════════════`);
     return reportPath;
   }
 
@@ -307,7 +317,7 @@ export class TestReporter {
     const htmlPath = path.join(this.reportDir, `report-${this.getTestFileName()}.html`);
     fs.writeFileSync(htmlPath, html);
 
-    console.log(`📄 HTML report generated: ${htmlPath}`);
+    console.log(`   📄 HTML report generated: ${htmlPath}`);
     return htmlPath;
   }
 
@@ -323,5 +333,28 @@ export class TestReporter {
 
   getMetrics(): TestMetrics {
     return this.metrics;
+  }
+
+  logTestCompletion(): void {
+    const totalDuration = Date.now() - this.testStartTime.getTime();
+    const passedSteps = this.steps.filter(s => s.status === 'passed').length;
+    const failedSteps = this.steps.filter(s => s.status === 'failed').length;
+    const skippedSteps = this.steps.filter(s => s.status === 'skipped').length;
+    
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log(`🏁 Test completed: ${this.testInfo.title}`);
+    console.log(`   ⏱️  Total duration: ${totalDuration < 1000 ? `${totalDuration}ms` : `${(totalDuration / 1000).toFixed(2)}s`}`);
+    console.log(`   📊 Steps: ${passedSteps} passed, ${failedSteps} failed, ${skippedSteps} skipped`);
+    console.log('═══════════════════════════════════════════════════════════════════');
+  }
+
+  /**
+   * Finalizes the test by generating reports and logging completion.
+   * This should be called at the very end of a test, after all steps are completed.
+   * Closes the browser context after completion.
+   */
+  async finalizeTest(): Promise<void> {
+    await this.generateDetailedReport();
+    this.logTestCompletion();
   }
 }

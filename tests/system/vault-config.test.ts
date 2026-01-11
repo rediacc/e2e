@@ -1,5 +1,7 @@
 import { test, expect } from '../../src/base/BaseTest';
 import { DashboardPage } from '../../pages/dashboard/DashboardPage';
+import { LoginPage } from '../../pages/auth/LoginPage';
+import { requireEnvVar } from '../../src/utils/env';
 
 // Vault configuration tests migrated from Python VaultConfigurationTest
 // Focus: open System page, open organization vault modal, fill required fields, generate SSH key and save
@@ -9,25 +11,42 @@ import { DashboardPage } from '../../pages/dashboard/DashboardPage';
 // that cannot be reliably triggered in automated tests
 test.describe.skip('System Vault Configuration Tests', () => {
   let dashboardPage: DashboardPage;
+  let loginPage: LoginPage;
 
-  test.beforeEach(async ({ adminPage }) => {
-    dashboardPage = new DashboardPage(adminPage);
+  test.beforeEach(async ({ page }) => {
+    loginPage = new LoginPage(page);
+    dashboardPage = new DashboardPage(page);
+    
+    await loginPage.navigate();
+    
+    // Login with admin credentials
+    const adminEmail = requireEnvVar('SYSTEM_ADMIN_EMAIL');
+    const adminPassword = requireEnvVar('SYSTEM_ADMIN_PASSWORD');
+    await loginPage.login(adminEmail, adminPassword);
+    await loginPage.waitForLoginCompletion();
+    
+    // Enable expert mode before authentication
+    await page.evaluate(() => {
+      localStorage.setItem('uiMode', 'expert');
+    });
+    
+    await page.reload();
 
     // Navigate to Settings > Organization using UI navigation
-    const settingsNav = adminPage.locator('[role="navigation"]').getByText('Settings');
+    const settingsNav = page.locator('[role="navigation"]').getByText('Settings');
     await settingsNav.waitFor({ state: 'visible', timeout: 10000 });
     await settingsNav.click();
-    await adminPage.waitForTimeout(500);
+    await page.waitForTimeout(500);
 
     // Click on Organization submenu (requires power mode)
-    const organizationSubNav = adminPage.locator('[role="navigation"]').getByText('Organization');
+    const organizationSubNav = page.locator('[role="navigation"]').getByText('Organization');
     await organizationSubNav.waitFor({ state: 'visible', timeout: 10000 });
     await organizationSubNav.click();
-    await adminPage.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle');
   });
 
   test('should configure organization vault with generated ssh key @system @vault @regression', async ({
-    adminPage,
+    page,
     screenshotManager,
     testReporter
   }) => {
@@ -35,7 +54,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
 
     // Already navigated to /console/settings/organization in beforeEach
     // Verify we're on the correct page by checking for organization vault button
-    const organizationVaultButton = adminPage.locator('[data-testid="system-organization-vault-button"]');
+    const organizationVaultButton = page.locator('[data-testid="system-organization-vault-button"]');
 
     try {
       await expect(organizationVaultButton).toBeVisible({ timeout: 10000 });
@@ -56,7 +75,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
     // Use precise selector - no fallbacks
     await organizationVaultButton.click();
 
-    const vaultModal = adminPage.locator('[data-testid="vault-modal"]');
+    const vaultModal = page.locator('[data-testid="vault-modal"]');
 
     try {
       await expect(vaultModal).toBeVisible({ timeout: 5000 });
@@ -74,7 +93,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
 
     const stepFillFields = await testReporter.startStep('Fill required vault fields');
 
-    const universalUserIdField = adminPage.locator(
+    const universalUserIdField = page.locator(
       '[data-testid="vault-editor-field-UNIVERSAL_USER_ID"]'
     );
 
@@ -84,7 +103,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
         await universalUserIdField.fill('universal_user_001');
       }
     } else {
-      const fallbackUserId = adminPage.locator(
+      const fallbackUserId = page.locator(
         'input[placeholder*="Universal User ID" i]'
       ).first();
       if (await fallbackUserId.isVisible()) {
@@ -95,7 +114,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
       }
     }
 
-    const universalUserNameField = adminPage.locator(
+    const universalUserNameField = page.locator(
       '[data-testid="vault-editor-field-UNIVERSAL_USER_NAME"]'
     );
 
@@ -105,7 +124,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
         await universalUserNameField.fill('Universal User');
       }
     } else {
-      const fallbackUserName = adminPage.locator(
+      const fallbackUserName = page.locator(
         'input[placeholder*="Universal User Name" i]'
       ).first();
       if (await fallbackUserName.isVisible()) {
@@ -116,7 +135,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
       }
     }
 
-    const textFields = adminPage.locator(
+    const textFields = page.locator(
       '.ant-modal input[type="text"], .ant-modal textarea'
     );
 
@@ -151,7 +170,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
     let sshDialogOpened = false;
 
     for (const selector of sshGenerateCandidates) {
-      const btn = adminPage.locator(selector).first();
+      const btn = page.locator(selector).first();
       if (await btn.isVisible()) {
         await btn.click();
         sshDialogOpened = true;
@@ -167,27 +186,27 @@ test.describe.skip('System Vault Configuration Tests', () => {
         'SSH generate button not found'
       );
     } else {
-      await adminPage.waitForTimeout(500);
+      await page.waitForTimeout(500);
 
-      const rsaOption = adminPage.locator('label:has-text("RSA")').first();
+      const rsaOption = page.locator('label:has-text("RSA")').first();
       if (await rsaOption.isVisible()) {
         await rsaOption.click();
       }
 
-      const keySizeOption = adminPage.locator('label:has-text("4096")').first();
+      const keySizeOption = page.locator('label:has-text("4096")').first();
       if (await keySizeOption.isVisible()) {
         await keySizeOption.click();
       }
 
       // Use precise selector for generate button
-      const generateButton = adminPage.locator('[data-testid="vault-editor-generate-button"]');
+      const generateButton = page.locator('[data-testid="vault-editor-generate-button"]');
 
       if (await generateButton.isVisible()) {
         await generateButton.click();
-        await adminPage.waitForTimeout(5000);
+        await page.waitForTimeout(5000);
 
         // Apply the generated key
-        const applyButton = adminPage.locator('[data-testid="vault-editor-apply-generated"]');
+        const applyButton = page.locator('[data-testid="vault-editor-apply-generated"]');
         if (await applyButton.isVisible()) {
           await applyButton.click();
         }
@@ -207,7 +226,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
     const stepSaveVault = await testReporter.startStep('Save vault configuration');
 
     // Use precise selector - no fallbacks
-    const saveButton = adminPage.locator('[data-testid="vault-modal-save-button"]');
+    const saveButton = page.locator('[data-testid="vault-modal-save-button"]');
 
     await expect(saveButton).toBeVisible({ timeout: 5000 });
     await expect(saveButton).toBeEnabled({ timeout: 5000 });
@@ -234,7 +253,7 @@ test.describe.skip('System Vault Configuration Tests', () => {
     let successDetected = false;
 
     for (const selector of notificationSelectors) {
-      const notification = adminPage.locator(selector);
+      const notification = page.locator(selector);
       if (await notification.isVisible()) {
         const text = (await notification.textContent()) || '';
         for (const indicator of successIndicators) {
@@ -267,5 +286,6 @@ test.describe.skip('System Vault Configuration Tests', () => {
     await testReporter.completeStep('Validate vault configuration saved', 'passed');
 
     await testReporter.generateDetailedReport();
+    testReporter.logTestCompletion();
   });
 });
